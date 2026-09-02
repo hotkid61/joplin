@@ -5,6 +5,7 @@ import { AppState, AppStateRoute } from '../app.reducer';
 import bridge from '../services/bridge';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { WindowIdContext } from './NewWindowOrIFrame';
+import appDisplayName from '@joplin/lib/appDisplayName';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Each registered screen has its own props shape; the navigator just spreads them through
 type ScreenProps = any;
@@ -25,7 +26,7 @@ interface Props {
 const useWindowTitleManager = (screenInfo: AppScreen) => {
 	const windowTitle = useMemo(() => {
 		const devMarker = Setting.value('env') === 'dev' ? ` (DEV - ${Setting.value('profileDir')})` : '';
-		const windowTitle = [`Joplin${devMarker}`];
+		const windowTitle = [`${appDisplayName}${devMarker}`];
 		if (screenInfo?.title) {
 			windowTitle.push(screenInfo.title());
 		}

@@ -28,6 +28,7 @@ import useAsyncEffect from '@joplin/lib/hooks/useAsyncEffect';
 import { EventName } from '@joplin/lib/eventManager';
 import { ipcRenderer } from 'electron';
 import NavService from '@joplin/lib/services/NavService';
+import appDisplayName from '@joplin/lib/appDisplayName';
 import Logger from '@joplin/utils/Logger';
 import { ImportCommandOptions } from './WindowCommandsAndDialogs/commands/importFrom';
 import { FileSystemItem } from '@joplin/lib/services/interop/types';
@@ -574,13 +575,13 @@ function useMenu(props: Props) {
 			const rootMenuFile = {
 				// Using a dummy entry for macOS here, because first menu
 				// becomes 'Joplin' and we need a menu called 'File' later.
-				label: shim.isMac() ? '&JoplinMainMenu' : _('&File'),
+				label: shim.isMac() ? '&AppMainMenu' : _('&File'),
 				// `&` before one of the char in the label name mean, that
 				// <Alt + F> will open this menu. It's needed because electron
 				// opens the first menu on Alt press if no hotkey assigned.
 				// Issue: https://github.com/laurent22/joplin/issues/934
 				submenu: [{
-					label: _('About Joplin'),
+					label: _('About %s', appDisplayName),
 					visible: !!shim.isMac(),
 					click: () => _showAbout(),
 				}, {
@@ -642,7 +643,7 @@ function useMenu(props: Props) {
 				},
 
 				shim.isMac() ? {
-					label: _('Hide %s', 'Joplin'),
+					label: _('Hide %s', appDisplayName),
 					platforms: ['darwin'],
 					accelerator: shim.isMac() && keymapService.getAccelerator('hideApp'),
 					click: () => { bridge().electronApp().hide(); },
@@ -904,7 +905,7 @@ function useMenu(props: Props) {
 						accelerator: keymapService.getAccelerator('help'),
 						click() { void bridge().openExternal('https://joplinapp.org'); },
 					}, {
-						label: _('Joplin Forum'),
+						label: _('Community Forum'),
 						click() { void bridge().openExternal('https://discourse.joplinapp.org'); },
 					}, {
 						label: _('Join us on %s', 'Bluesky'),
@@ -939,7 +940,7 @@ function useMenu(props: Props) {
 						type: 'separator',
 						visible: !shim.isMac(),
 					}, {
-						label: _('About Joplin'),
+						label: _('About %s', appDisplayName),
 						visible: !shim.isMac(),
 						click: () => _showAbout(),
 					}],

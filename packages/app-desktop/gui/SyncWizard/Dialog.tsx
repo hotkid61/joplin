@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Dispatch } from 'redux';
 import { useRef, useCallback, useId } from 'react';
 import { _ } from '@joplin/lib/locale';
+import appDisplayName from '@joplin/lib/appDisplayName';
 import DialogButtonRow from '../DialogButtonRow';
 import Dialog from '@joplin/lib/components/Dialog';
 import styled from 'styled-components';
@@ -276,7 +277,7 @@ export default function(props: Props) {
 		const selfHostingLinkId = `${baseId}-selfHostingLink`;
 		const selfHostingMessage = <SelfHostingMessage>
 			<span id={selfHostingLabelId}>
-				Self-hosting? Joplin also supports various self-hosting options such as Nextcloud, WebDAV, AWS S3 and Joplin Server.
+				Self-hosting? Booz Allen Notes also supports various self-hosting options such as Nextcloud, WebDAV, AWS S3 and Joplin Server.
 			</span>
 			{' '}
 			<a
@@ -306,7 +307,7 @@ export default function(props: Props) {
 	function renderDialogWrapper() {
 		return (
 			<StyledRoot>
-				<DialogTitle title={_('Joplin can synchronise your notes using various providers. Select one from the list below.')} justifyContent="center"/>
+				<DialogTitle title={_('%s can synchronise your notes using various providers. Select one from the list below.', appDisplayName)} justifyContent="center"/>
 				{renderContent()}
 				<DialogButtonRow
 					themeId={props.themeId}

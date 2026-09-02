@@ -11,6 +11,7 @@ import UserWebviewDialog from '../services/plugins/UserWebviewDialog';
 import { ContainerType } from '@joplin/lib/services/plugins/WebviewController';
 import { defaultWindowId, StateLastDeletion, stateUtils } from '@joplin/lib/reducer';
 import { _ } from '@joplin/lib/locale';
+import appDisplayName from '@joplin/lib/appDisplayName';
 import { AppState } from '../app.reducer';
 import { saveLayout, loadLayout } from './ResizableLayout/utils/persist';
 import Setting from '@joplin/lib/models/Setting';
@@ -526,7 +527,7 @@ class MainScreenComponent extends React.Component<Props, State> {
 			);
 		} else if (this.props.shouldUpgradeSyncTarget) {
 			msg = this.renderNotificationMessage(
-				_('The sync target needs to be upgraded before Joplin can sync. The operation may take a few minutes to complete and the app needs to be restarted. To proceed please click on the link.'),
+				_('The sync target needs to be upgraded before %s can sync. The operation may take a few minutes to complete and the app needs to be restarted. To proceed please click on the link.', appDisplayName),
 				_('Restart and upgrade'),
 				onRestartAndUpgrade,
 			);
@@ -575,7 +576,7 @@ class MainScreenComponent extends React.Component<Props, State> {
 			msg = this.renderNotificationMessage(this.props.mustUpgradeAppMessage);
 		} else if (this.props.shouldSwitchToAppleSiliconVersion) {
 			msg = this.renderNotificationMessage(
-				_('You are running the Intel version of Joplin on an Apple Silicon processor. Download the Apple Silicon one for better performance.'),
+				_('You are running the Intel version of %s on an Apple Silicon processor. Download the Apple Silicon one for better performance.', appDisplayName),
 				_('Download it now'),
 				onDownloadAppleSiliconVersion,
 			);

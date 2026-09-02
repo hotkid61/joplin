@@ -100,7 +100,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 	}
 
 	public renderMessage() {
-		const message = this.props.message || 'Joplin encountered a fatal error and could not continue.';
+		const message = this.props.message || 'Booz Allen Notes encountered a fatal error and could not continue.';
 		return <p>{message}</p>;
 	}
 

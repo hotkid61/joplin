@@ -5,6 +5,7 @@ import { clipboard } from 'electron';
 import ExtensionBadge from './ExtensionBadge';
 import { themeStyle } from '@joplin/lib/theme';
 import { _ } from '@joplin/lib/locale';
+import appDisplayName from '@joplin/lib/appDisplayName';
 import ClipperServer from '@joplin/lib/ClipperServer';
 import Setting from '@joplin/lib/models/Setting';
 import EncryptionService from '@joplin/lib/services/e2ee/EncryptionService';
@@ -108,7 +109,7 @@ class ClipperConfigScreenComponent extends React.Component<Props> {
 			if (!clipperEnabled) {
 				webClipperStatusComps.push(
 					<p key="text_4" style={theme.textStyle}>
-						{_('The web clipper service cannot be enabled in this instance of Joplin.')}
+						{_('The web clipper service cannot be enabled in this instance of %s.', appDisplayName)}
 					</p>,
 				);
 			} else {
@@ -136,12 +137,12 @@ class ClipperConfigScreenComponent extends React.Component<Props> {
 			<div>
 				<div style={containerStyle}>
 					<div>
-						<p style={{ ...theme.textStyle, marginTop: 0 }}>{_('Joplin Web Clipper allows saving web pages and screenshots from your browser to Joplin.')}</p>
+						<p style={{ ...theme.textStyle, marginTop: 0 }}>{_('%s Web Clipper allows saving web pages and screenshots from your browser to %s.', appDisplayName, appDisplayName)}</p>
 						<p style={theme.textStyle}>{_('In order to use the web clipper, you need to do the following:')}</p>
 
 						<div style={stepBoxStyle}>
 							<p style={theme.h1Style}>{_('Step 1: Enable the clipper service')}</p>
-							<p style={theme.textStyle}>{_('This service allows the browser extension to communicate with Joplin. When enabling it your firewall may ask you to give permission to Joplin to listen to a particular port.')}</p>
+							<p style={theme.textStyle}>{_('This service allows the browser extension to communicate with %s. When enabling it your firewall may ask you to give permission to %s to listen to a particular port.', appDisplayName, appDisplayName)}</p>
 							<div>{webClipperStatusComps}</div>
 						</div>
 
@@ -163,7 +164,7 @@ class ClipperConfigScreenComponent extends React.Component<Props> {
 									{_('Copy token')}
 								</a>
 							</p>
-							<p style={theme.textStyle}>{_('This authorisation token is only needed to allow third-party applications to access Joplin.')}</p>
+							<p style={theme.textStyle}>{_('This authorisation token is only needed to allow third-party applications to access %s.', appDisplayName)}</p>
 							<div>
 								<button key="renew_button" style={buttonStyle} onClick={this.renewToken_click}>
 									{_('Renew token')}

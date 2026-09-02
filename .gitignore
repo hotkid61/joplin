@@ -1328,6 +1328,7 @@ packages/lib/TaskQueue.js
 packages/lib/WebDavApi.js
 packages/lib/WelcomeUtils.test.js
 packages/lib/WelcomeUtils.js
+packages/lib/appDisplayName.js
 packages/lib/array.js
 packages/lib/callbackUrlUtils.test.js
 packages/lib/callbackUrlUtils.js

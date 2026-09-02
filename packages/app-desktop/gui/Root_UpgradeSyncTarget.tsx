@@ -94,7 +94,7 @@ function Root_UpgradeSyncTarget() {
 
 	return (
 		<div>
-			<h2>Joplin upgrade in progress...</h2>
+			<h2>Booz Allen Notes upgrade in progress...</h2>
 			<p>Please wait while the sync target is being upgraded. It may take a few seconds or a few minutes depending on the upgrade. The application will automatically restart once it is completed.</p>
 			{renderUpgradeError()}
 		</div>

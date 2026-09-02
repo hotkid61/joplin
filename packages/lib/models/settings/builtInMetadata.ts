@@ -1,6 +1,7 @@
 import { rtrimSlashes } from '@joplin/utils/path';
 import SyncTargetRegistry from '../../SyncTargetRegistry';
 import { _, _n, defaultLocale, supportedLocalesToLanguages } from '../../locale';
+import appDisplayName from '../../appDisplayName';
 import shim from '../../shim';
 import time from '../../time';
 import type SettingType from '../Setting';
@@ -1490,7 +1491,7 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			appTypes: [AppType.Desktop],
 			label: () => _('Show tray icon'),
 			description: () => {
-				return platform === 'linux' ? _('Note: Does not work in all desktop environments.') : _('This will allow Joplin to run in the background. It is recommended to enable this setting so that your notes are constantly being synchronised, thus reducing the number of conflicts.');
+				return platform === 'linux' ? _('Note: Does not work in all desktop environments.') : _('This will allow %s to run in the background. It is recommended to enable this setting so that your notes are constantly being synchronised, thus reducing the number of conflicts.', appDisplayName);
 			},
 			storage: SettingStorage.File,
 			isGlobal: true,
@@ -1511,8 +1512,8 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			section: 'application',
 			public: true,
 			appTypes: [AppType.Desktop],
-			label: () => _('Global shortcut to show/hide Joplin'),
-			description: () => _('A system-wide keyboard shortcut that toggles the Joplin window. Works even when Joplin is not focused. Example: CommandOrControl+Shift+J. Leave empty to disable.'),
+			label: () => _('Global shortcut to show/hide %s', appDisplayName),
+			description: () => _('A system-wide keyboard shortcut that toggles the %s window. Works even when %s is not focused. Example: CommandOrControl+Shift+J. Leave empty to disable.', appDisplayName, appDisplayName),
 			storage: SettingStorage.File,
 			isGlobal: true,
 			autoSave: true,
@@ -1743,7 +1744,7 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			type: SettingItemType.Button,
 			public: true,
 			appTypes: [AppType.Desktop],
-			label: () => _('Custom stylesheet for Joplin-wide app styles'),
+			label: () => _('Custom stylesheet for %s-wide app styles', appDisplayName),
 			section: 'appearance',
 			advanced: true,
 			description: () => 'CSS file support is provided for your convenience, but they are advanced settings, and styles you define may break from one version to the next. If you want to use them, please know that it might require regular development work from you to keep them working. The Joplin team cannot make a commitment to keep the application HTML structure stable.',
@@ -2471,7 +2472,7 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			section: 'note',
 			public: true,
 			isGlobal: true,
-			label: () => _('Show Joplin icon for note links'),
+			label: () => _('Show %s icon for note links', appDisplayName),
 			appTypes: [AppType.Desktop, AppType.Mobile],
 		},
 	} satisfies Record<string, SettingItem>;

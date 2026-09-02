@@ -17,6 +17,7 @@ import { LayoutItem } from '../ResizableLayout/utils/types';
 import { PluginStates } from '@joplin/lib/services/plugins/reducer';
 import layoutKeyToLabel from '../../utils/layout/layoutKeyToLabel';
 import MainLayoutPane from '../MainLayoutPane';
+import appDisplayName from '@joplin/lib/appDisplayName';
 
 interface Props {
 	dispatch: Dispatch;
@@ -39,7 +40,7 @@ const useWindowTitle = (isNewWindow: boolean) => {
 		};
 	}
 
-	return { windowTitle: `Joplin - ${title}`, onNoteTitleChange: setTitle };
+	return { windowTitle: `${appDisplayName} - ${title}`, onNoteTitleChange: setTitle };
 };
 
 const defaultLayout = {

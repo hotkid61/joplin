@@ -1,5 +1,6 @@
 import CommandService from '@joplin/lib/services/CommandService';
 import shim from '@joplin/lib/shim';
+import appDisplayName from '@joplin/lib/appDisplayName';
 
 import { _ } from '@joplin/lib/locale';
 
@@ -19,7 +20,7 @@ const getLabel = (commandName: string): string => {
 	case 'help':
 		return _('Website and documentation');
 	case 'hideApp':
-		return _('Hide Joplin');
+		return _('Hide %s', appDisplayName);
 	case 'minimizeWindow':
 		return _('Minimise');
 	case 'closeWindow':

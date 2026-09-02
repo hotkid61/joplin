@@ -1,14 +1,14 @@
-# Welcome to Joplin!
+# Welcome to Booz Allen Notes!
 
-Joplin is a free, open source note taking and to-do application, which helps you write and organise your notes, and synchronise them between your devices. The notes are searchable, can be copied, tagged and modified either from the application directly or from your own text editor. The notes are in [Markdown format](https://joplinapp.org/help/apps/markdown). Joplin is available as a **desktop**, **mobile** and **terminal** application.
+Booz Allen Notes is a note taking and to-do application, which helps you write and organise your notes, and synchronise them between your devices. The notes are searchable, can be copied, tagged and modified either from the application directly or from your own text editor. The notes are in [Markdown format](https://joplinapp.org/help/apps/markdown). Booz Allen Notes is available as a **desktop**, **mobile** and **terminal** application.
 
-The notes in this notebook give an overview of what Joplin can do and how to use it. In general, the three applications share roughly the same functionalities; any differences will be clearly indicated.
+The notes in this notebook give an overview of what Booz Allen Notes can do and how to use it. In general, the three applications share roughly the same functionalities; any differences will be clearly indicated.
 
 ![](./AllClients.png)
 
-## Joplin is divided into three parts
+## Booz Allen Notes is divided into three parts
 
-Joplin has three main columns:
+Booz Allen Notes has three main columns:
 
 - **Sidebar** contains the list of your notebooks and tags, as well as the synchronisation status.
 
@@ -18,7 +18,7 @@ Joplin has three main columns:
 
 ## Writing notes in Markdown
 
-Markdown is a lightweight markup language with plain text formatting syntax. Joplin supports a [Github-flavoured Markdown syntax](https://joplinapp.org/help/apps/markdown) with a few variations and additions.
+Markdown is a lightweight markup language with plain text formatting syntax. Booz Allen Notes supports a [Github-flavoured Markdown syntax](https://joplinapp.org/help/apps/markdown) with a few variations and additions.
 
 In general, while Markdown is a markup language, it is meant to be human readable, even without being rendered. This is a simple example (you can see how it looks in the viewer panel):
 
