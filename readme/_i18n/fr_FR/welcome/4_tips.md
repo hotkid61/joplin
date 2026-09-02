@@ -1,18 +1,18 @@
 # Trucs & Astuces
 
-Les premières notes vous ont donné un aperçu des principales fonctionnalités de Joplin, mais il peut faire plus. Voir ci-dessous pour certaines de ces fonctionnalités et comment obtenir plus d'aide en utilisant l'application :
+Les premières notes vous ont donné un aperçu des principales fonctionnalités de Booz Allen Notes, mais l'application peut faire plus. Voir ci-dessous pour certaines de ces fonctionnalités et comment obtenir plus d'aide :
 
 ## Web Clipper
 
 ![](./WebClipper.png)
 
-Le Web Clipper est une extension de navigateur qui vous permet d'enregistrer des pages Web et des captures d'écran à partir de votre navigateur. Pour commencer à l'utiliser, ouvrez l'application de bureau Joplin, accédez aux options du Web Clipper et suivez les instructions.
+Le Web Clipper est une extension de navigateur qui vous permet d'enregistrer des pages Web et des captures d'écran à partir de votre navigateur. Pour commencer à l'utiliser, ouvrez l'application de bureau Booz Allen Notes, accédez aux options du Web Clipper et suivez les instructions.
 
-Plus d'infos sur le site officiel : https://joplinapp.org/help/apps/clipper/
+Plus d'infos : https://notes.boozallen.com/help/apps/clipper
 
 ## Plugins
 
-Joplin prend en charge de nombreux plugins qui vous permettent d'ajouter de nouvelles fonctionnalités à l'application, telles que des onglets, une table des matières pour vos notes, un moyen de gérer les notes préférées et bien d'autres. Pour ajouter un plugin, rendez-vous dans la section "Plugins" de l'écran de configuration. À partir de là, vous pouvez rechercher et installer des plugins, ainsi que rechercher ou mettre à jour des plugins.
+Booz Allen Notes prend en charge de nombreux plugins qui vous permettent d'ajouter de nouvelles fonctionnalités à l'application, telles que des onglets, une table des matières pour vos notes, un moyen de gérer les notes préférées et bien d'autres. Pour ajouter un plugin, rendez-vous dans la section "Plugins" de l'écran de configuration. À partir de là, vous pouvez rechercher et installer des plugins, ainsi que rechercher ou mettre à jour des plugins.
 
 ## Pièces jointes
 
@@ -20,19 +20,19 @@ Tout type de fichier peut être joint à une note. Dans Markdown, les liens vers
 
 Les images peuvent être jointes soit en cliquant sur "Joindre un fichier", soit en collant (avec `Ctrl+V` ou `Cmd+V`) une image directement dans l'éditeur, soit en glissant-déposant une image.
 
-Plus d'infos sur les pièces jointes : https://joplinapp.org/help/apps/attachments
+Plus d'infos sur les pièces jointes : https://notes.boozallen.com/help/apps/attachments
 
 ## Recherche
 
-Joplin prend en charge les requêtes de recherche avancées, qui sont entièrement documentées sur le site officiel : https://joplinapp.org/help/apps/search
+Booz Allen Notes prend en charge les requêtes de recherche avancées, qui sont entièrement documentées ici : https://notes.boozallen.com/help/apps/search
 
 ## Alarmes
 
-Une alarme peut être associée à n'importe quelle tâche. Elle sera déclenchée à l'heure indiquée par l'affichage d'une notification. Pour utiliser cette fonctionnalité, consultez la documentation : https://joplinapp.org/help/apps/notifications
+Une alarme peut être associée à n'importe quelle tâche. Elle sera déclenchée à l'heure indiquée par l'affichage d'une notification. Pour utiliser cette fonctionnalité, consultez la documentation : https://notes.boozallen.com/help/apps/notifications
 
 ## Conseils avancés Markdown
 
-Joplin utilise et rend [Github-flavored Markdown](https://joplinapp.org/help/apps/markdown) avec quelques variations et ajouts.
+Booz Allen Notes utilise et rend [Github-flavored Markdown](https://notes.boozallen.com/help/apps/markdown) avec quelques variations et ajouts.
 
 Par exemple, les tableaux sont pris en charge :
 
@@ -40,6 +40,7 @@ Par exemple, les tableaux sont pris en charge :
 | ------------- |:-------------:| -----:|
 | col 3 est      | alignée à droite | $1600 |
 | col 2 est      | centrée      |   $12 |
+| rayures      | sont élégantes      |    $1 |
 
 Vous pouvez également créer des listes de cases à cocher. Ces cases peuvent être cochées directement dans le visualiseur, ou en ajoutant un "x" à l'intérieur :
 
@@ -55,16 +56,9 @@ f(x) = \int_{-\infty}^\infty
      \,d\xi
 $$
 
-Diverses autres astuces sont possibles, telles que l'utilisation de HTML ou la personnalisation du CSS. Voir la documentation Markdown pour plus d'informations - https://joplinapp.org/markdown/
+Diverses autres astuces sont possibles, telles que l'utilisation de HTML ou la personnalisation du CSS. Voir la documentation Markdown pour plus d'informations - https://notes.boozallen.com/help/apps/markdown
 
-## Communauté et aide supplémentaire
+## Aide supplémentaire et attribution
 
-- Pour une discussion générale sur Joplin, l'assistance aux utilisateurs, les questions de développement logiciel et pour discuter des nouvelles fonctionnalités, rendez-vous sur le [Forum Joplin](https://discourse.joplinapp.org/). Il est possible de se connecter avec votre compte GitHub.
-- Les dernières nouvelles sont publiées [sur la page Patreon](https://www.patreon.com/joplin).
-- Pour les rapports de bugs et les demandes de fonctionnalités, accédez au [GitHub Issue Tracker](https://github.com/laurent22/joplin/issues).
-
-## Donations
-
-Les dons à Joplin soutiennent le développement du projet. Développer des applications de qualité prend généralement du temps, mais il y a aussi des dépenses, comme les certificats numériques pour signer les applications, les frais d'app store, l'hébergement, etc. Surtout, votre don permettra de maintenir le standard de développement actuel.
-
-Veuillez consulter la [page de don](https://joplinapp.org/donate/) pour savoir comment soutenir le développement de Joplin.
+- Pour obtenir de l'aide sur Booz Allen Notes, consultez la [documentation](https://notes.boozallen.com/help).
+- Booz Allen Notes est basé sur le projet open source [Joplin](https://joplinapp.org) et est distribué sous licence AGPL. Les informations sur le code source et les contributions en amont restent disponibles auprès du projet Joplin.

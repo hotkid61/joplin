@@ -14,7 +14,7 @@ const itemMetadata_: ItemMetadata = {
 		id: '4ec2e7505fc2e7505ec2e7505ec2a751',
 		platform: WelcomeAssetPlatform.Web,
 	},
-	'1_welcome_to_joplin.md': {
+	'1_welcome_to_booz_allen_notes.md': {
 		id: '8a1556e382704160808e9a7bef7135d3',
 	},
 	'2_importing_and_exporting_notes.md': {
@@ -49,7 +49,7 @@ allMetadata_['en_GB'] = itemMetadata_;
 
 allMetadata_['fr_FR'] = {
 	...itemMetadata_,
-	'1_welcome_to_joplin.md': {
+	'1_welcome_to_booz_allen_notes.md': {
 		id: '223a99e0dad4c8882988f446815ea28c',
 	},
 	'2_importing_and_exporting_notes.md': {
