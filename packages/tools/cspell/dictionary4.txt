@@ -333,3 +333,16 @@ heic
 heif
 logits
 tradeoff
+cdrl
+defense
+eucom
+fomin
+markmap
+mindmap
+omis
+overclaim
+rollups
+sharepoint
+theater
+tlonindustries
+yesyoukan
