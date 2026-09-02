@@ -44,3 +44,8 @@ This file is the canonical mapping for the BAH Joplin fork identity.
 - Windows publisher name: `Booz Allen Hamilton`
 - Linux package maintainer: `Booz Allen Hamilton <no-reply@boozallen.com>`
 - Apple team/provider variables: keep existing `APPLE_ASC_PROVIDER` secret model, but scoped to BAH signing account.
+
+## Visual branding kit
+
+- Interim colors / wordmark / icon placeholders: [`Assets/BahNotes/`](../Assets/BahNotes/README.md)
+- Confirm HEX/typography with BAH Brand before external release; do not scrape official logo files into git.

@@ -55,7 +55,7 @@
       ],
       "sign": "./sign.js",
       "rfc3161TimeStampServer": "http://timestamp.digicert.com",
-      "icon": "../../Assets/ImageSources/Joplin.ico",
+      "icon": "../../Assets/BahNotes/png/bah-official-app-icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -90,7 +90,7 @@
       "artifactName": "${productName}Portable.${ext}"
     },
     "mac": {
-      "icon": "../../Assets/macOs.icns",
+      "icon": "../../Assets/BahNotes/png/bah-official-app-icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -127,7 +127,7 @@
       }
     },
     "linux": {
-      "icon": "../../Assets/LinuxIcons",
+      "icon": "../../Assets/BahNotes/png/linux",
       "category": "Office",
       "desktop": {
         "Icon": "joplin",

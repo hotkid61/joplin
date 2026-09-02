@@ -15,6 +15,12 @@ This repository is a fork of Joplin, maintained as a Booz Allen Hamilton branded
 - AGPL licensing and bundled third-party notices remain in place.
 - This fork does not remove or rewrite required attribution records.
 
+## Branding assets
+
+- Demo branding kit (colors, interim product SVG/PNG, official CDN logos for demo, packaging notes): `Assets/BahNotes/README.md`
+- Demo packaging is wired for desktop electron-builder + mobile Android/iOS/web icons (see `Assets/BahNotes/docs/packaging_apply.md`).
+- Production/store releases still need Brand Portal–approved masters and legal review before external distribution.
+
 ## Update Policy
 
 - Periodically rebase/merge from upstream Joplin after compatibility review.

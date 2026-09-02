@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Booz Allen Notes monochrome interim app icon">
+  <rect width="512" height="512" rx="96" fill="#000000"/>
+  <rect x="118" y="96" width="276" height="320" rx="28" fill="#FFFFFF"/>
+  <rect x="152" y="148" width="160" height="18" rx="9" fill="#000000"/>
+  <rect x="152" y="190" width="208" height="14" rx="7" fill="#333333" opacity="0.45"/>
+  <rect x="152" y="224" width="188" height="14" rx="7" fill="#333333" opacity="0.45"/>
+  <rect x="152" y="258" width="200" height="14" rx="7" fill="#333333" opacity="0.45"/>
+  <rect x="152" y="292" width="140" height="14" rx="7" fill="#333333" opacity="0.45"/>
+  <path d="M322 96 H394 L322 168 Z" fill="#6B7280"/>
+</svg>

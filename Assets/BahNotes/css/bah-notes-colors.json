@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "product": "Booz Allen Notes",
+    "status": "interim",
+    "disclaimer": "HEX values are from publicly cited third-party summaries and must be confirmed with BAH Brand. Official logo files are not included.",
+    "sources": [
+      "https://colorcodeguide.com/official/booz-allen-hamilton",
+      "https://1000logos.net/booz-allen-hamilton-logo/",
+      "https://mediacenter.boozallen.com/booz-allen-press",
+      "https://www.boozallen.com/"
+    ]
+  },
+  "colors": {
+    "bah-blue": { "hex": "#004C97", "rgb": [0, 76, 151], "role": "primary" },
+    "bah-dark-gray": { "hex": "#333333", "rgb": [51, 51, 51], "role": "text/accent", "pantone": "PMS 447 C (cited)" },
+    "bah-black": { "hex": "#000000", "rgb": [0, 0, 0], "role": "monochrome wordmark" },
+    "bah-white": { "hex": "#FFFFFF", "rgb": [255, 255, 255], "role": "on-primary" },
+    "bah-blue-dark": { "hex": "#003A73", "rgb": [0, 58, 115], "role": "pressed" },
+    "bah-blue-light": { "hex": "#3370AC", "rgb": [51, 112, 172], "role": "hover" },
+    "bah-surface": { "hex": "#F5F7FA", "rgb": [245, 247, 250], "role": "surface" },
+    "bah-muted": { "hex": "#6B7280", "rgb": [107, 114, 128], "role": "muted text" }
+  },
+  "typography": {
+    "corporateWordmarkNote": "Public sources describe a geometric gothic sans similar to Franklin Gothic; exact face is internal.",
+    "uiSans": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif",
+    "mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+  },
+  "productNames": {
+    "display": "Booz Allen Notes",
+    "cli": "bah-notes",
+    "desktopAppId": "com.boozallen.bahnotes-desktop"
+  }
+}

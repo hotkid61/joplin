@@ -1,0 +1,55 @@
+/* Booz Allen Notes — interim design tokens
+ * Source: publicly cited BAH palette (#004C97 / #333333) + product neutrals.
+ * Confirm with BAH Brand before external release. Not an official brand PDF export.
+ */
+
+:root {
+	/* Core (publicly cited) */
+	--bah-blue: #004c97;
+	--bah-dark-gray: #333333;
+	--bah-black: #000000;
+	--bah-white: #ffffff;
+
+	/* Supporting UI */
+	--bah-blue-dark: #003a73;
+	--bah-blue-light: #3370ac;
+	--bah-surface: #f5f7fa;
+	--bah-muted: #6b7280;
+	--bah-border: #d1d5db;
+
+	/* Semantic aliases for product UI */
+	--bah-color-primary: var(--bah-blue);
+	--bah-color-primary-hover: var(--bah-blue-light);
+	--bah-color-primary-pressed: var(--bah-blue-dark);
+	--bah-color-on-primary: var(--bah-white);
+	--bah-color-text: var(--bah-dark-gray);
+	--bah-color-text-muted: var(--bah-muted);
+	--bah-color-bg: var(--bah-white);
+	--bah-color-bg-subtle: var(--bah-surface);
+	--bah-color-border: var(--bah-border);
+	--bah-color-danger: #b42318;
+	--bah-color-success: #067647;
+
+	/* Typography stacks (system-safe interim) */
+	--bah-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+	--bah-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+	--bah-font-display: var(--bah-font-sans);
+
+	/* Optional bridge into Joplin theme vars when wiring desktop SCSS */
+	--joplin-color: var(--bah-color-text);
+	--joplin-background-color: var(--bah-color-bg);
+	--joplin-color-url: var(--bah-color-primary);
+}
+
+/* Utility helpers for splash / about screens */
+.bah-notes-wordmark {
+	font-family: var(--bah-font-display);
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--bah-dark-gray);
+}
+
+.bah-notes-on-blue {
+	background: var(--bah-blue);
+	color: var(--bah-white);
+}
