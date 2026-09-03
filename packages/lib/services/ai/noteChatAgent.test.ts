@@ -68,6 +68,9 @@ describe('noteChatAgent', () => {
 		expect(prompt).toContain('_AI Chats');
 		expect(prompt).toContain('Enabled tools in this session: search_notes, create_note, update_note');
 		expect(prompt).not.toContain('"edits"');
+		expect(prompt).toContain('tag:TAG_TITLE');
+		expect(prompt).toContain('read_note each unique id at most ONCE');
+		expect(prompt).toContain('stop calling tools and answer immediately');
 	});
 
 	test('claimsUnverifiedWriteSuccess detects success narration without tools', () => {
@@ -153,6 +156,31 @@ describe('noteChatAgent', () => {
 
 		setAgentToolEnabled('create_note', true);
 		expect(_internal.buildAgentToolDefinitions().map(d => d.name)).toContain('create_note');
+	});
+
+
+	test('readNoteCacheKey and extractNoteIdsFromToolPayload support tag retrieval', () => {
+		expect(_internal.readNoteCacheKey({ id: 'abc', offset: 0, max_chars: 0 })).toBe('abc|0|0');
+		expect(_internal.readNoteCacheKey({ id: 'abc', offset: 10, max_chars: 100 })).toBe('abc|10|100');
+		expect(_internal.readNoteCacheKey({})).toBe('');
+
+		const fromSearch = _internal.extractNoteIdsFromToolPayload(
+			'search_notes',
+			JSON.stringify({ results: [{ id: 'n1', title: 'A' }, { id: 'n2', title: 'B' }], total: 2 }),
+		);
+		expect(fromSearch).toEqual(['n1', 'n2']);
+
+		const fromList = _internal.extractNoteIdsFromToolPayload(
+			'list_notes',
+			JSON.stringify({ notes: [{ id: 'n3', title: 'C' }], total: 1 }),
+		);
+		expect(fromList).toEqual(['n3']);
+	});
+
+	test('maxAgentSteps is raised for multi-doc summarisation', () => {
+		expect(_internal.maxAgentSteps).toBeGreaterThanOrEqual(12);
+		expect(_internal.alreadyReadGuidance).toMatch(/already read/i);
+		expect(_internal.synthesizeNowNudge).toMatch(/final answer/i);
 	});
 
 });

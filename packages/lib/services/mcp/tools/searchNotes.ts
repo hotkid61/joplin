@@ -9,19 +9,36 @@ interface Input {
 
 const fields = ['id', 'title', 'parent_id', 'updated_time', 'body'];
 const defaultLimit = 20;
+const tagOnlyDefaultLimit = 50;
 const maxLimit = 100;
 const snippetChars = 240;
+
+const coerceInt = (value: unknown, fallback: number) => {
+	if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+	if (typeof value === 'string' && value.trim() !== '') {
+		const n = Number(value);
+		if (Number.isFinite(n)) return Math.trunc(n);
+	}
+	return fallback;
+};
+
+const isTagOnlyQuery = (query: string) => {
+	const tokens = query.trim().split(/\s+/).filter(Boolean);
+	return tokens.length > 0 && tokens.every(t => /^-?tag:/.test(t));
+};
 
 const tool: McpTool = {
 	id: 'search_notes',
 	description: [
 		'Search notes. Returns a ranked list of matches with id, title, notebook id, updated_time, and a short snippet anchored on the keyword match. The snippet often answers the question without a follow-up read_note call.',
 		'',
+		'PRIMARY way to find every note with a tag: use the Joplin filter `tag:TAG_TITLE` (example: `tag:iron-lattice`). One search_notes call is enough — do not list_tags then list_notes by notebook.',
+		'',
 		'The query supports plain keywords and Joplin search filters. Combine filters with spaces (AND); prefix with - to negate.',
 		'',
 		'Filters:',
 		'  notebook:"Name"     limit to a notebook by title (quotes if the title has spaces)',
-		'  tag:Name            limit to notes with this tag',
+		'  tag:Name            limit to notes with this tag (use for "all notes tagged X")',
 		'  title:Text          match in title only',
 		'  body:Text           match in body only',
 		'  any:1 word1 word2   match notes containing any of the words (default is all)',
@@ -34,29 +51,32 @@ const tool: McpTool = {
 		'  resource:image/png  match notes with attachments of this MIME type',
 		'',
 		'Examples:',
+		'  tag:iron-lattice                    — every note tagged iron-lattice',
+		'  tag:idea -tag:archived              — tagged "idea" but not "archived"',
 		'  meeting notes                       — keyword search across all notes',
 		'  notebook:"Work" project             — keyword "project" within the Work notebook',
 		'  notebook:Inbox                      — every note in the Inbox notebook',
-		'  tag:idea -tag:archived              — tagged "idea" but not "archived"',
 		'  type:todo iscompleted:0 due:day+7   — open todos due within a week',
 	].join('\n'),
 	inputSchema: {
 		type: 'object',
 		properties: {
-			query: { type: 'string', description: 'Search query. See the tool description for the full filter syntax.' },
-			limit: { type: 'integer', description: 'Maximum number of results to return.', minimum: 1, maximum: maxLimit, default: defaultLimit },
+			query: { type: 'string', description: 'Search query. For all notes with a tag, use tag:TAG_TITLE. See the tool description for the full filter syntax.' },
+			limit: { type: 'integer', description: 'Maximum number of results to return. Defaults to 50 for tag-only queries, otherwise 20.', minimum: 1, maximum: maxLimit },
 		},
 		required: ['query'],
 	},
 	handler: async (input: Input) => {
 		if (!input.query || !input.query.trim()) throw new ToolError('Missing "query" parameter');
 
-		const limit = Math.min(Math.max(input.limit ?? defaultLimit, 1), maxLimit);
-		const { notes } = await SearchEngineUtils.notesForQuery(input.query, false, { fields });
+		const query = input.query.trim();
+		const fallbackLimit = isTagOnlyQuery(query) ? tagOnlyDefaultLimit : defaultLimit;
+		const limit = Math.min(Math.max(coerceInt(input.limit, fallbackLimit), 1), maxLimit);
+		const { notes } = await SearchEngineUtils.notesForQuery(query, false, { fields });
 
 		// Pull keywords out of the query so we can anchor the snippet near a
 		// match. Filters like `notebook:"X"` aren't useful for that.
-		const keywords = input.query
+		const keywords = query
 			.split(/\s+/)
 			.filter(t => t && !t.includes(':') && !t.startsWith('-'))
 			.map(t => t.replace(/^["*]+|["*]+$/g, '').toLowerCase())

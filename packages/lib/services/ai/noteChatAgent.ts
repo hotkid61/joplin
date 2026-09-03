@@ -9,7 +9,7 @@ import type { ChatReply, ChatTurn, NoteContext } from './noteChat';
 
 const logger = Logger.create('noteChatAgent');
 
-export const maxAgentSteps = 8;
+export const maxAgentSteps = 12;
 
 // Keep in sync with supportedStructuredBlockTags in noteChat.ts
 const structuredBlockTags = ['jsoncanvas', 'mermaid', 'abc', 'fountain'];
@@ -336,6 +336,14 @@ const agentSystemPrompt = (note: NoteContext, enabledToolNames: string[] = []) =
 		'Use tools when you need information outside the current note, or when the user asks you to change another note.',
 		'Prefer search_notes / read_note / list_notes over guessing. Prefer update_note append or replace_text over rewriting an entire body.',
 		'Use open_note to show a note in the UI. Use get_or_create_daily_note for daily notes. Use get_vault_stats for an overview.',
+		'',
+		'Tagged / multi-document retrieval (CRITICAL):',
+		'- To find every note with a tag, call search_notes ONCE with query `tag:TAG_TITLE` (example: `tag:iron-lattice`). Optionally use list_notes with tag:"TAG_TITLE".',
+		'- Do NOT discover tagged notes by list_tags → list_notes(notebook_id=tagId) → list_notebooks thrashing. list_notes notebook_id is for notebooks only.',
+		'- Then read_note each unique id at most ONCE. Never re-read the same note id in this turn.',
+		'- Skip open_note unless the user asked to open/show a note in the UI — it wastes a step during summarisation.',
+		'- After you have read the unique notes you need, stop calling tools and answer immediately with a synthesis. Do not search again.',
+		'',
 		'When calling create_note, keep the body concise (about one to two pages / under ~2000 words). Prefer a clear outline over a very long dump — long tool arguments often time out on local models.',
 		'Never delete notes. There is no delete tool.',
 		'',
@@ -386,6 +394,43 @@ const agentSystemPrompt = (note: NoteContext, enabledToolNames: string[] = []) =
 	return lines.join('\n');
 };
 
+
+const readNoteCacheKey = (args: Record<string, unknown>) => {
+	const id = String(args.id ?? '').trim();
+	if (!id) return '';
+	const offset = args.offset ?? 0;
+	const maxChars = args.max_chars ?? 0;
+	return `${id}|${offset}|${maxChars}`;
+};
+
+const extractNoteIdsFromToolPayload = (toolName: string, text: string) => {
+	const ids: string[] = [];
+	try {
+		const parsed = JSON.parse(text) as Record<string, unknown>;
+		if (toolName === 'read_note' && typeof parsed.id === 'string') {
+			ids.push(parsed.id);
+		}
+		const lists = [parsed.results, parsed.notes];
+		for (const list of lists) {
+			if (!Array.isArray(list)) continue;
+			for (const item of list) {
+				if (item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string') {
+					ids.push((item as { id: string }).id);
+				}
+			}
+		}
+	} catch {
+		// ignore non-JSON tool payloads
+	}
+	return ids;
+};
+
+const alreadyReadGuidance =
+	'already read this turn — synthesize now. Do not call read_note again for this id; answer from the tool results you already have.';
+
+const synthesizeNowNudge =
+	'SYSTEM: You already have the note contents from tool results in this turn. Reply now with your final answer for the user. Do not call any more tools.';
+
 export const runNoteChatAgent = async (
 	note: NoteContext,
 	history: ChatTurn[],
@@ -422,6 +467,11 @@ export const runNoteChatAgent = async (
 
 	const writeSuccesses: WriteSuccess[] = [];
 	let falseClaimNudged = false;
+	const readNoteCache = new Map<string, string>();
+	const uniqueNotesRead = new Set<string>();
+	const discoveredNoteIds = new Set<string>();
+	let synthesizeNudged = false;
+
 
 	const replyFromWritesOrThrow = (error: unknown): ChatReply => {
 		if (isAiAbortError(error)) throw error;
@@ -530,9 +580,37 @@ export const runNoteChatAgent = async (
 					}
 				}
 
-				const invoked = await invokeAgentTool(call);
+				let invoked: { ok: boolean; text: string };
+				let usedCache = false;
+				if (call.name === 'read_note') {
+					const cacheKey = readNoteCacheKey(call.arguments ?? {});
+					const cached = cacheKey ? readNoteCache.get(cacheKey) : undefined;
+					if (cached) {
+						usedCache = true;
+						invoked = {
+							ok: true,
+							text: `${cached}\n\n[${alreadyReadGuidance}]`,
+						};
+					} else {
+						invoked = await invokeAgentTool(call);
+						if (invoked.ok && cacheKey) {
+							readNoteCache.set(cacheKey, invoked.text);
+							const id = String(call.arguments?.id ?? '').trim();
+							if (id) uniqueNotesRead.add(id);
+						}
+					}
+				} else {
+					invoked = await invokeAgentTool(call);
+					if (invoked.ok && (call.name === 'search_notes' || call.name === 'list_notes')) {
+						for (const id of extractNoteIdsFromToolPayload(call.name, invoked.text)) {
+							discoveredNoteIds.add(id);
+						}
+					}
+				}
 				throwIfAiAborted(signal);
-				const endSummary = toolActivitySummary(call.name, call.arguments, 'end', !invoked.ok, invoked.text);
+				const endSummary = usedCache
+					? `Already read note ${String(call.arguments?.id ?? '').slice(0, 12)} this turn`
+					: toolActivitySummary(call.name, call.arguments, 'end', !invoked.ok, invoked.text);
 				const resultFields = parseToolResultFields(invoked.ok ? invoked.text : '');
 				const noteId = resultFields.id
 					|| String(call.arguments?.id ?? call.arguments?.note_id ?? '').trim()
@@ -562,6 +640,16 @@ export const runNoteChatAgent = async (
 					content: invoked.text,
 				});
 			}
+
+			const discoveredCount = discoveredNoteIds.size;
+			const readEnough = uniqueNotesRead.size > 0 && (
+				(discoveredCount > 0 && uniqueNotesRead.size >= discoveredCount)
+				|| uniqueNotesRead.size >= 3
+			);
+			if (readEnough && !synthesizeNudged) {
+				synthesizeNudged = true;
+				messages.push({ role: 'user', content: synthesizeNowNudge });
+			}
 			continue;
 		}
 
@@ -577,6 +665,21 @@ export const runNoteChatAgent = async (
 
 	if (writeSuccesses.length) {
 		return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
+	}
+
+	if (uniqueNotesRead.size > 0) {
+		logger.warn('Agent hit max steps after reading notes; forcing a no-tools synthesis pass.');
+		messages.push({ role: 'user', content: synthesizeNowNudge });
+		try {
+			const finalResult = await AiService.instance().chat(messages, { signal });
+			const text = (finalResult.text || '').trim();
+			if (text) {
+				const finalized = finalizeTextReply(text);
+				if (finalized !== 'nudge') return finalized;
+			}
+		} catch (error) {
+			return replyFromWritesOrThrow(error);
+		}
 	}
 
 	throw new JoplinError(
@@ -597,4 +700,8 @@ export const _internal = {
 	shouldEnforceWriteClaim,
 	unverifiedWriteSuccessReply,
 	maxAgentSteps,
+	readNoteCacheKey,
+	extractNoteIdsFromToolPayload,
+	alreadyReadGuidance,
+	synthesizeNowNudge,
 };

@@ -381,4 +381,48 @@ describe('McpServer', () => {
 		const updated = await Note.load(note.id);
 		expect(updated.parent_id).toBe(to.id);
 	});
+	test('search_notes finds notes by tag filter', async () => {
+		const folder = await Folder.save({ title: 'F' });
+		const tagged = await Note.save({ title: 'Tagged Note', body: 'secret payload', parent_id: folder.id });
+		const other = await Note.save({ title: 'Other', body: 'nope', parent_id: folder.id });
+		const tag = await Tag.save({ title: 'iron-lattice' });
+		await Tag.addNote(tag.id, tagged.id);
+
+		SearchEngine.instance().setDb(db());
+		await SearchEngine.instance().syncTables();
+
+		const response = await McpServer.instance().handleRequest({
+			jsonrpc: '2.0', id: 1, method: 'tools/call',
+			params: { name: 'search_notes', arguments: { query: 'tag:iron-lattice' } },
+		});
+		const payload = parseToolResult(response.result);
+		expect(payload.results.map((r: { id: string }) => r.id)).toEqual([tagged.id]);
+		expect(payload.results.map((r: { id: string }) => r.id)).not.toContain(other.id);
+	});
+
+	test('list_notes lists notes by tag title and rejects tag as notebook_id', async () => {
+		const folder = await Folder.save({ title: 'F' });
+		const tagged = await Note.save({ title: 'Tagged Note', body: 'x', parent_id: folder.id });
+		await Note.save({ title: 'Other', body: 'y', parent_id: folder.id });
+		const tag = await Tag.save({ title: 'iron-lattice' });
+		await Tag.addNote(tag.id, tagged.id);
+
+		const byTag = await McpServer.instance().handleRequest({
+			jsonrpc: '2.0', id: 1, method: 'tools/call',
+			params: { name: 'list_notes', arguments: { tag: 'iron-lattice' } },
+		});
+		const payload = parseToolResult(byTag.result);
+		expect(payload.tag_title).toBe('iron-lattice');
+		expect(payload.notes.map((n: { id: string }) => n.id)).toEqual([tagged.id]);
+
+		const misuse = await McpServer.instance().handleRequest({
+			jsonrpc: '2.0', id: 2, method: 'tools/call',
+			params: { name: 'list_notes', arguments: { notebook_id: 'iron-lattice' } },
+		});
+		expect(misuse.result.isError).toBe(true);
+		expect(misuse.result.content[0].text).toMatch(/tag/i);
+		expect(misuse.result.content[0].text).toMatch(/search_notes|tag:/i);
+	});
+
+
 });
