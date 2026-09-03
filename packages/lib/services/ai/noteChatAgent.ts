@@ -266,14 +266,50 @@ export const invokeAgentTool = async (call: ToolCallRequest) => {
 	}
 };
 
+// User turns that clearly ask to mutate vault content (create/edit/rename/etc.).
+export const userLooksLikeWriteRequest = (text: string) => {
+	const t = (text || '').trim();
+	if (!t) return false;
+	// cSpell:disable
+	return /\b(?:create|update|edit|append|save|rename|revert|undo|restore|rewrite|replace|delete|move)\b|\b(?:change|set|fix)\s+(?:the\s+)?(?:title|body|name|note)\b|\b(?:add|make)\s+(?:a\s+|an\s+|the\s+)?(?:new\s+)?(?:note|notebook|heading|paragraph|section|todo|tag)\b|\bnew\s+note\b|\bchange\s+it\s+back\b/i.test(t);
+	// cSpell:enable
+};
+
+// Casual turns that must never trigger tools or the write-claim guard.
+export const isCasualNonTaskMessage = (text: string) => {
+	const t = (text || '').trim();
+	if (!t) return false;
+	// cSpell:disable
+	if (/^(hi|hello|hey|howdy|yo|sup|hiya|good\s+(?:morning|afternoon|evening)|thanks|thank\s+you|thx|cheers|ok|okay|cool|great|nice)[\s!.?]*$/i.test(t)) {
+		return true;
+	}
+	return /\b(?:what(?:\s+\w+){0,4}\s+tools?\b|which\s+tools?\b|tools?\s+(?:can|do)\s+you\b|what\s+can\s+you\s+(?:do|call|use)\b|your\s+capabilities\b|list\s+(?:your\s+)?tools?\b)/i.test(t)
+		&& !userLooksLikeWriteRequest(t);
+	// cSpell:enable
+};
+
 // Detect assistant prose that asserts a create/update/revert already happened.
-// Used to catch models that narrate success without issuing tool calls.
+// Kept tight: bare "was created" / historical narration must NOT match (greetings
+// often mention that a note or transcript was created).
 export const claimsUnverifiedWriteSuccess = (text: string) => {
 	const t = (text || '').trim();
 	if (!t) return false;
 	// cSpell:disable
-	return /\b(?:has been|have been|was|were)\s+(?:successfully\s+)?(?:updated|changed|reverted|created|renamed|restored|undone)\b|\b(?:successfully)\s+(?:updated|changed|reverted|created|renamed|restored)\b|\b(?:updated|changed|reverted|created|renamed)\s+(?:the\s+)?(?:note|title|body)\b|\b(?:title|note|body)\b.{0,80}\b(?:has been|have been|was|were)\s+(?:successfully\s+)?(?:updated|changed|reverted|renamed|restored)\b|\b(?:changed|reverted|restored)\s+(?:it\s+)?back\b|\bI(?:'ve| have)\s+(?:updated|changed|created|reverted|renamed|restored)\b/i.test(t);
+	return /\bI(?:'ve| have)\s+(?:successfully\s+)?(?:updated|changed|created|reverted|renamed|restored|undone)\b|\b(?:successfully)\s+(?:updated|changed|reverted|created|renamed|restored)\b|\b(?:the\s+)?(?:note|title|body)\s+(?:has been|have been|was|were)\s+(?:successfully\s+)?(?:updated|changed|reverted|renamed|restored|undone)\b|\b(?:updated|changed|reverted|renamed)\s+(?:the\s+)?(?:note|title|body)\b|\b(?:created)\s+(?:the\s+|a\s+)?(?:new\s+)?note\b|\b(?:title|note|body)\b.{0,40}\b(?:has been|have been|was|were)\s+(?:successfully\s+)?(?:updated|changed|reverted|renamed|restored)\b|\b(?:changed|reverted|restored)\s+(?:it\s+)?back\b/i.test(t);
 	// cSpell:enable
+};
+
+// Only run the false-success post-check when the user asked to write, or the
+// assistant clearly claims a write while write tools were offered.
+export const shouldEnforceWriteClaim = (
+	userMessage: string,
+	assistantText: string,
+	opts: { writeToolsOffered: boolean; writeSuccessCount: number },
+) => {
+	if (opts.writeSuccessCount > 0) return false;
+	if (isCasualNonTaskMessage(userMessage)) return false;
+	if (!claimsUnverifiedWriteSuccess(assistantText)) return false;
+	return userLooksLikeWriteRequest(userMessage) || opts.writeToolsOffered;
 };
 
 export const unverifiedWriteSuccessReply =
@@ -282,9 +318,20 @@ export const unverifiedWriteSuccessReply =
 const falseClaimNudge =
 	'SYSTEM REMINDER: You just claimed a create/update/revert/undo succeeded, but no successful create_note or update_note tool result exists in this turn. You MUST call the appropriate tool now. Never claim success without a successful tool result. If you cannot call the tool, say clearly that you have NOT applied the change.';
 
-const agentSystemPrompt = (note: NoteContext) => {
+const agentSystemPrompt = (note: NoteContext, enabledToolNames: string[] = []) => {
+	const toolList = enabledToolNames.length
+		? enabledToolNames.join(', ')
+		: '(none enabled)';
 	const lines: string[] = [
 		'You are an agent inside Booz Allen Notes (Joplin). You can search the vault, read notes, and create or update notes using tools.',
+		'',
+		'CRITICAL — when NOT to use tools (reply in natural language with zero tool calls):',
+		'- Greetings and small talk ("hi", "hello", "thanks", etc.): just greet back. Do not create, update, list, or search notes.',
+		'- Pure Q&A about your capabilities ("what tools can you call?", "what can you do?"): answer from the enabled tool list below. Do not call list_notes or any other tool to answer.',
+		'- Never create or update a note unless the user clearly asks to create, edit, save, append, rename, revert, undo, or otherwise change vault content.',
+		'- Never write into `_AI Chats` notebook notes or AI Chat transcript notes via tools — those transcripts are auto-persisted by the app. Do not append chat replies into the current note with update_note.',
+		'',
+		`Enabled tools in this session: ${toolList}`,
 		'',
 		'Use tools when you need information outside the current note, or when the user asks you to change another note.',
 		'Prefer search_notes / read_note / list_notes over guessing. Prefer update_note append or replace_text over rewriting an entire body.',
@@ -356,8 +403,11 @@ export const runNoteChatAgent = async (
 		);
 	}
 
+	const enabledToolNames = tools.map(t => t.name);
+	const writeToolsOffered = enabledToolNames.some(name => agentWriteToolIds.has(name));
+
 	const messages: ChatMessage[] = [
-		{ role: 'system', content: agentSystemPrompt(note) },
+		{ role: 'system', content: agentSystemPrompt(note, enabledToolNames) },
 		...history.map<ChatMessage>(t => ({ role: t.role, content: t.content })),
 		{ role: 'user', content: userMessage },
 	];
@@ -388,7 +438,10 @@ export const runNoteChatAgent = async (
 			if (writeSuccesses.length) return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
 			return { reply: '', edits: [] };
 		}
-		if (claimsUnverifiedWriteSuccess(trimmed) && writeSuccesses.length === 0) {
+		if (shouldEnforceWriteClaim(userMessage, trimmed, {
+			writeToolsOffered,
+			writeSuccessCount: writeSuccesses.length,
+		})) {
 			if (!falseClaimNudged) {
 				falseClaimNudged = true;
 				logger.warn('Agent claimed write success without a tool result; nudging for a tool call.');
@@ -539,6 +592,9 @@ export const _internal = {
 	invokeAgentTool,
 	formatWriteSuccessFallback,
 	claimsUnverifiedWriteSuccess,
+	userLooksLikeWriteRequest,
+	isCasualNonTaskMessage,
+	shouldEnforceWriteClaim,
 	unverifiedWriteSuccessReply,
 	maxAgentSteps,
 };
