@@ -26,3 +26,17 @@ This repository is a fork of Joplin, maintained as a Booz Allen Hamilton branded
 - Periodically rebase/merge from upstream Joplin after compatibility review.
 - Re-run `yarn verifyRebrand` after every upstream sync to catch identifier regressions.
 - Keep this document current when divergence grows beyond branding and namespace changes.
+
+## Note Graph LLM enrichment (demo / local LLM)
+
+The installed Note Graph plugin can call the **chat** model (`joplin.ai` → `/v1/chat/completions`) to label notes and edges. That competes with AI Chat for GPU time in LM Studio.
+
+**Keep demos quiet (recommended):**
+
+1. **Tools → Options → Note Graph** (or **Settings → Note Graph**)
+2. Turn **off** **Enable LLM analysis** / enriching notes (`noteGraph.llmEnrichmentEnabled`)
+3. Leave **Enable AI-based semantic analysis** on if you still want local e5 similarity edges (those do **not** hit LM Studio)
+
+**Manual labels only:** use **Retry AI enrichment** in Note Graph settings when you explicitly want labels. Do not leave LLM enrichment enabled during chat-heavy demos.
+
+Dev profile: the Joplin desktop config dir under `~/.config/` for this fork’s dev build; plugin setting key ends with `noteGraph.llmEnrichmentEnabled`.
