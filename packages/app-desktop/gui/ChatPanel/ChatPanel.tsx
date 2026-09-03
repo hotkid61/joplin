@@ -134,6 +134,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 				title: note.title || '',
 				body: note.body || '',
 				selection: selection || null,
+				noteId: props.noteId,
 			}, conversationTurns, text);
 
 			if (generationRef.current !== startGeneration) return;
@@ -271,7 +272,9 @@ const ChatPanel: React.FC<Props> = (props) => {
 			<div className='messages'>
 				{messages.length === 0 && (
 					<div className='empty'>
-						{_('Ask about this note, or request changes. Select text in the editor first to scope the request to that selection.')}
+						{Setting.value('ai.chat.includeRelatedNotes')
+							? _('Ask about this note or related notes in your vault. Select text in the editor first to scope edits to that selection.')
+							: _('Ask about this note, or request changes. Select text in the editor first to scope the request to that selection.')}
 					</div>
 				)}
 				{messages.map(m => {
@@ -311,7 +314,9 @@ const ChatPanel: React.FC<Props> = (props) => {
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
 						onKeyDown={handleKeyDown}
-						placeholder={_('Ask about this note, or request a change…')}
+						placeholder={Setting.value('ai.chat.includeRelatedNotes')
+							? _('Ask about this note or your vault…')
+							: _('Ask about this note, or request a change…')}
 						aria-label={_('Chat message')}
 					/>
 					<button

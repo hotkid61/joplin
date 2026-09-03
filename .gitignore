@@ -1296,6 +1296,7 @@ packages/lib/BaseSyncTarget.js
 packages/lib/Cache.js
 packages/lib/ClipperServer.js
 packages/lib/CssUtils.js
+packages/lib/DemoNotebookUtils.js
 packages/lib/EventDispatcher.test.js
 packages/lib/EventDispatcher.js
 packages/lib/HtmlToMd.js
@@ -1581,6 +1582,8 @@ packages/lib/services/ai/providers/Anthropic.js
 packages/lib/services/ai/providers/ChatProviderBase.js
 packages/lib/services/ai/providers/JoplinCloud.js
 packages/lib/services/ai/providers/OpenAiCompatible.js
+packages/lib/services/ai/relatedNotesContext.test.js
+packages/lib/services/ai/relatedNotesContext.js
 packages/lib/services/ai/testing/TestEmbeddingProvider.test.js
 packages/lib/services/ai/testing/TestEmbeddingProvider.js
 packages/lib/services/ai/types.js

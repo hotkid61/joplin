@@ -35,6 +35,25 @@ describe('noteChat', () => {
 		expect(prompt).toContain('- [ ]');
 	});
 
+	test('systemPrompt includes related vault excerpts when provided', () => {
+		const prompt = _internal.systemPrompt({
+			title: 'Friday Brief',
+			body: 'current note body',
+			selection: null,
+			relatedNotes: [{
+				noteId: 'abc123',
+				title: 'OMIS context',
+				excerpt: 'EUCOM adjacent contract details',
+				source: 'semantic',
+			}],
+		});
+		expect(prompt).toContain('BEGIN RELATED NOTES');
+		expect(prompt).toContain('OMIS context');
+		expect(prompt).toContain('EUCOM adjacent contract details');
+		expect(prompt).toContain('abc123');
+		expect(prompt).toContain('current note body');
+	});
+
 	test('systemPrompt includes full body when no selection', () => {
 		const prompt = _internal.systemPrompt({
 			title: 'My note',

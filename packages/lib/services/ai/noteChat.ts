@@ -4,6 +4,7 @@ import JoplinError from '../../JoplinError';
 import Logger from '@joplin/utils/Logger';
 import JSON5 from 'json5';
 import findFencedBlock from './utils/findFencedBlock';
+import { fetchRelatedNoteExcerpts, RelatedNoteExcerpt } from './relatedNotesContext';
 
 const logger = Logger.create('noteChat');
 
@@ -39,6 +40,8 @@ export interface NoteContext {
 	title: string;
 	body: string;
 	selection: string | null;
+	noteId?: string | null;
+	relatedNotes?: RelatedNoteExcerpt[];
 }
 
 export interface ChatReply {
@@ -66,6 +69,20 @@ const hasStructuredBlock = (note: NoteContext) => {
 	return supportedStructuredBlockTags.some(tag => !!findFencedBlock(note.body, tag, 0));
 };
 
+const formatRelatedNotes = (relatedNotes: RelatedNoteExcerpt[]) => {
+	const lines: string[] = [
+		'Related notes from the vault (retrieved for this question). Use them to answer when relevant. Prefer citing note titles. Do not invent content beyond these excerpts and the current note. Edits still apply only to the current note.',
+		'--- BEGIN RELATED NOTES ---',
+	];
+	for (const related of relatedNotes) {
+		lines.push(`### ${related.title || '(untitled)'} [id: ${related.noteId}]`);
+		lines.push(related.excerpt);
+		lines.push('');
+	}
+	lines.push('--- END RELATED NOTES ---');
+	return lines;
+};
+
 const systemPrompt = (note: NoteContext) => {
 	const lines: string[] = [
 		'You are an assistant helping the user work on a note in Joplin, a note-taking application.',
@@ -86,6 +103,11 @@ const systemPrompt = (note: NoteContext) => {
 		lines.push('--- BEGIN NOTE ---');
 		lines.push(note.body);
 		lines.push('--- END NOTE ---');
+	}
+
+	if (note.relatedNotes?.length) {
+		lines.push('');
+		lines.push(...formatRelatedNotes(note.relatedNotes));
 	}
 
 	lines.push('');
@@ -246,8 +268,18 @@ export const runNoteChat = async (
 	history: ChatTurn[],
 	userMessage: string,
 ): Promise<ChatReply> => {
+	const relatedNotes = note.relatedNotes
+		?? await fetchRelatedNoteExcerpts(userMessage, note.noteId);
+	const noteWithContext: NoteContext = relatedNotes.length
+		? { ...note, relatedNotes }
+		: note;
+
+	if (relatedNotes.length) {
+		logger.info(`Including ${relatedNotes.length} related note excerpt(s) in chat context`);
+	}
+
 	const messages: ChatMessage[] = [
-		{ role: 'system', content: systemPrompt(note) },
+		{ role: 'system', content: systemPrompt(noteWithContext) },
 		...history.map<ChatMessage>(t => ({ role: t.role, content: t.content })),
 		{ role: 'user', content: userMessage },
 	];
@@ -262,7 +294,7 @@ export const runNoteChat = async (
 		);
 	}
 
-	const result = await AiService.instance().chat(messages, { responseFormat: responseSchema(note) });
+	const result = await AiService.instance().chat(messages, { responseFormat: responseSchema(noteWithContext) });
 	return enforceSelectionScope(tryParseReply(result.text), note.selection);
 };
 

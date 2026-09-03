@@ -791,6 +791,21 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			storage: SettingStorage.Database,
 		},
 
+		// When on, AI Chat retrieves related vault notes (embeddings first,
+		// keyword search fallback) and injects short excerpts into the prompt
+		// so answers can span notebooks without the full tool-agent loop.
+		'ai.chat.includeRelatedNotes': {
+			value: true,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'ai',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['ai.enabled'],
+			label: () => _('Include related notes from vault'),
+			description: () => _('When chatting, search other notes for relevant context and send short excerpts with the current note. Uses local embeddings when available, otherwise keyword search. Edits still apply only to the open note.'),
+			storage: SettingStorage.File,
+		},
+
 		// User toggle for the background embedding indexer. On by default —
 		// when AI is enabled, indexing is part of what AI does. The toggle
 		// exists as a kill switch for users who want chat without the
