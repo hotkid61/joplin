@@ -24,6 +24,7 @@ import ResourceScreen from './ResourceScreen';
 import ProfileEditor from './ProfileEditor';
 import Navigator from './Navigator';
 import WelcomeUtils from '@joplin/lib/WelcomeUtils';
+import DemoNotebookUtils from '@joplin/lib/DemoNotebookUtils';
 import JoplinCloudLoginScreen from './JoplinCloudLoginScreen';
 import InteropService from '@joplin/lib/services/interop/InteropService';
 import WindowCommandsAndDialogs from './WindowCommandsAndDialogs/WindowCommandsAndDialogs';
@@ -94,6 +95,7 @@ class RootComponent extends React.Component<Props, any> {
 		}
 
 		await WelcomeUtils.install(Setting.value('locale'), this.props.dispatch);
+		await DemoNotebookUtils.install(this.props.dispatch);
 	}
 
 	private renderModalMessage(props: ModalDialogProps) {

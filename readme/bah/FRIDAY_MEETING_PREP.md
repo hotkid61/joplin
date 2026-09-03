@@ -2,7 +2,7 @@
 
 **Audience:** You (briefing) → PM / Deputy PM / Director  
 **Story:** OMIS / Global Defense / EUCOM multi-contract **central notes repository**  
-**Build note:** Default plugins are **not** preloaded in this fork. Install the plugins below in-app before the meeting. Simple Backup remains bundled.
+**Build note:** Default plugins are **not** preloaded (except Simple Backup + Freehand Drawing). A **BAH Notes Demo** notebook is seeded on first launch. Install Outline / Note Overview / YesYouKan / Quick Links from Plugins before the meeting. **Markmap is optional** — the Friday Brief works as a scrollable Markdown outline; install Markmap only if you want a mind-map view.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Plugin | Joplin plugin ID | Store page |
 | --- | --- | --- |
-| **Markmap** | `de.fomin.markmap` | https://joplinapp.org/plugins/plugin/de.fomin.markmap/ |
+| **Markmap** (optional) | `de.fomin.markmap` | https://joplinapp.org/plugins/plugin/de.fomin.markmap/ |
 | **Note Overview** | `io.github.jackgruber.note-overview` | https://joplinapp.org/plugins/plugin/io.github.jackgruber.note-overview/ |
 | **Outline** | `outline` | https://joplinapp.org/plugins/plugin/outline/ |
 | **YesYouKan** | `org.joplinapp.plugins.YesYouKan` | https://joplinapp.org/plugins/plugin/org.joplinapp.plugins.YesYouKan/ |
@@ -37,7 +37,9 @@ If search fails (air-gapped / offline): download the `.jpl` from the store links
 
 ## 3. Recommended notebook structure for the demo
 
-Create a root notebook and nest as follows:
+On a **fresh profile**, this layout is created automatically as **BAH Notes Demo** (Friday Brief, Actions, dashboard, inbox stubs, OMIS/EUCOM context). No Markmap required — scroll the Friday Brief by headings; install Outline for side navigation.
+
+If the seeded notebook is missing (existing profile), create a root notebook and nest as follows:
 
 ```
 BAH Notes Demo
@@ -52,7 +54,7 @@ BAH Notes Demo
 
 | Notebook | Note | Purpose |
 | --- | --- | --- |
-| Program Office / Friday Briefs | **Friday Brief — Director Demo** | Primary talking note + Markmap target |
+| Program Office / Friday Briefs | **Friday Brief — Director Demo** | Primary talking note (scroll headings / Outline; Markmap optional) |
 | Program Office / Friday Briefs | **Actions — YesYouKan** | Kanban board for open asks |
 | _Dashboards | **Open Asks / Recently Updated** | Note Overview search block |
 | _Inbox | 2–3 stubs tagged `[Email]`, `[SharePoint]`, `[Meeting]` | Show ingest → brief flow |

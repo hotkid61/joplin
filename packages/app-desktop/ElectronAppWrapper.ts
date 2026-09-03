@@ -22,6 +22,7 @@ import { defaultWindowId } from '@joplin/lib/reducer';
 import { msleep, Second } from '@joplin/utils/time';
 import determineBaseAppDirs from '@joplin/lib/determineBaseAppDirs';
 import getAppName from '@joplin/lib/getAppName';
+import appDisplayName from '@joplin/lib/appDisplayName';
 import { execCommand } from '@joplin/utils';
 
 interface RendererProcessQuitReply {
@@ -260,6 +261,8 @@ export default class ElectronAppWrapper {
 			height: windowState.height,
 			minWidth: 100,
 			minHeight: 100,
+			// Avoid a brief "Joplin" title before the renderer sets appDisplayName.
+			title: appDisplayName,
 			// A backgroundColor is needed to enable sub-pixel rendering.
 			// Based on https://www.electronjs.org/docs/latest/faq#the-font-looks-blurry-what-is-this-and-what-can-i-do,
 			// this needs to be a non-transparent color:

@@ -1,7 +1,8 @@
 const execCommand = require('./execCommand');
 
 const isArm64 = () => {
-	return process.platform === 'arm64';
+	// process.platform is 'darwin'/'linux'/'win32'; arch is 'arm64'/'x64'.
+	return process.arch === 'arm64';
 };
 
 const isWindows = () => {

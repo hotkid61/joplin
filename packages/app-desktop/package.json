@@ -47,6 +47,7 @@
     "asar": true,
     "asarUnpack": [
       "./node_modules/node-notifier/vendor/**",
+      "./node_modules/sqlite3/**",
       "./node_modules/sqlite-vec-*/**"
     ],
     "win": {
@@ -95,19 +96,13 @@
         {
           "target": "dmg",
           "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "pkg",
-          "arch": [
-            "x64"
+            "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "x64"
+            "arm64"
           ]
         }
       ],
