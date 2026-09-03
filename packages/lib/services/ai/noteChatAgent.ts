@@ -129,7 +129,11 @@ export const toolActivitySummary = (
 		return 'Created note';
 	}
 	case 'update_note': {
-		const id = String(args.id ?? '').slice(0, 12);
+		const fields = parseToolResultFields(resultText || '');
+		const title = clipTitle(fields.title);
+		const id = (fields.id || String(args.id ?? '')).slice(0, 12);
+		if (title && id) return `Updated note: ${title} (id ${id})`;
+		if (title) return `Updated note: ${title}`;
 		return id ? `Updated note ${id}` : 'Updated note';
 	}
 	default:
@@ -199,6 +203,22 @@ export const invokeAgentTool = async (call: ToolCallRequest) => {
 	}
 };
 
+// Detect assistant prose that asserts a create/update/revert already happened.
+// Used to catch models that narrate success without issuing tool calls.
+export const claimsUnverifiedWriteSuccess = (text: string) => {
+	const t = (text || '').trim();
+	if (!t) return false;
+	// cSpell:disable
+	return /\b(?:has been|have been|was|were)\s+(?:successfully\s+)?(?:updated|changed|reverted|created|renamed|restored|undone)\b|\b(?:successfully)\s+(?:updated|changed|reverted|created|renamed|restored)\b|\b(?:updated|changed|reverted|created|renamed)\s+(?:the\s+)?(?:note|title|body)\b|\b(?:title|note|body)\b.{0,80}\b(?:has been|have been|was|were)\s+(?:successfully\s+)?(?:updated|changed|reverted|renamed|restored)\b|\b(?:changed|reverted|restored)\s+(?:it\s+)?back\b|\bI(?:'ve| have)\s+(?:updated|changed|created|reverted|renamed|restored)\b/i.test(t);
+	// cSpell:enable
+};
+
+export const unverifiedWriteSuccessReply =
+	'I have not applied that change yet — no successful create_note/update_note tool result in this turn. Ask me again and I will call the tool, or retry the request.';
+
+const falseClaimNudge =
+	'SYSTEM REMINDER: You just claimed a create/update/revert/undo succeeded, but no successful create_note or update_note tool result exists in this turn. You MUST call the appropriate tool now. Never claim success without a successful tool result. If you cannot call the tool, say clearly that you have NOT applied the change.';
+
 const agentSystemPrompt = (note: NoteContext) => {
 	const lines: string[] = [
 		'You are an agent inside Booz Allen Notes (Joplin). You can search the vault, read notes, and create or update notes using tools.',
@@ -207,7 +227,15 @@ const agentSystemPrompt = (note: NoteContext) => {
 		'Prefer search_notes / read_note over guessing. Prefer update_note append or replace_text over rewriting an entire body.',
 		'When calling create_note, keep the body concise (about one to two pages / under ~2000 words). Prefer a clear outline over a very long dump — long tool arguments often time out on local models.',
 		'Never delete notes. There is no delete tool.',
-		'After tools finish, reply to the user in plain language (not JSON). Summarise what you changed.',
+		'',
+		'CRITICAL — tool results are the only proof of writes:',
+		'- For any create, update, rename, revert, undo, or "change it back" request, you MUST call create_note or update_note in THIS turn.',
+		'- NEVER claim success (e.g. "has been updated", "changed back", "successfully reverted") unless that tool returned success in THIS turn.',
+		'- Listing notebooks or searching is not enough — you still must call update_note to change a title or body.',
+		'- For title/body updates, pass only id and the fields to change. Do NOT pass notebook_id unless moving the note. Never invent notebook_id="default".',
+		'- If a tool fails, say it failed and quote the error. Do not pretend it worked.',
+		'',
+		'After tools finish, reply to the user in plain language (not JSON). Summarise only what the tools actually did.',
 		'',
 		`Current note id: ${note.noteId || '(none)'}`,
 		`Current note title: ${note.title || '(untitled)'}`,
@@ -275,6 +303,7 @@ export const runNoteChatAgent = async (
 	}
 
 	const writeSuccesses: WriteSuccess[] = [];
+	let falseClaimNudged = false;
 
 	const replyFromWritesOrThrow = (error: unknown): ChatReply => {
 		if (writeSuccesses.length) {
@@ -282,6 +311,30 @@ export const runNoteChatAgent = async (
 			return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
 		}
 		throw error;
+	};
+
+	const finalizeTextReply = (text: string): ChatReply | 'nudge' => {
+		const trimmed = text.trim();
+		if (!trimmed) {
+			if (writeSuccesses.length) return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
+			return { reply: '', edits: [] };
+		}
+		if (claimsUnverifiedWriteSuccess(trimmed) && writeSuccesses.length === 0) {
+			if (!falseClaimNudged) {
+				falseClaimNudged = true;
+				logger.warn('Agent claimed write success without a tool result; nudging for a tool call.');
+				messages.push({ role: 'assistant', content: trimmed });
+				messages.push({ role: 'user', content: falseClaimNudge });
+				return 'nudge';
+			}
+			logger.warn('Agent repeated unverified write-success claim; replacing reply.');
+			return {
+				reply: unverifiedWriteSuccessReply,
+				edits: [],
+				warning: 'The assistant claimed a note change without a successful tool call. Nothing was written.',
+			};
+		}
+		return { reply: trimmed, edits: [] };
 	};
 
 	for (let step = 0; step < maxAgentSteps; step++) {
@@ -302,7 +355,11 @@ export const runNoteChatAgent = async (
 				isError: true,
 			});
 			const text = (result.text || '').trim();
-			if (text) return { reply: text, edits: [] };
+			if (text) {
+				const finalized = finalizeTextReply(text);
+				if (finalized === 'nudge') continue;
+				return finalized;
+			}
 			if (writeSuccesses.length) return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
 			return { reply: summary, edits: [] };
 		}
@@ -353,7 +410,11 @@ export const runNoteChatAgent = async (
 		}
 
 		const text = (result.text || '').trim();
-		if (text) return { reply: text, edits: [] };
+		if (text) {
+			const finalized = finalizeTextReply(text);
+			if (finalized === 'nudge') continue;
+			return finalized;
+		}
 		if (writeSuccesses.length) return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
 		return { reply: '', edits: [] };
 	}
@@ -374,5 +435,7 @@ export const _internal = {
 	buildAgentToolDefinitions,
 	invokeAgentTool,
 	formatWriteSuccessFallback,
+	claimsUnverifiedWriteSuccess,
+	unverifiedWriteSuccessReply,
 	maxAgentSteps,
 };

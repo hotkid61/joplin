@@ -73,17 +73,27 @@ Settings → AI → **Agent: can search and edit notes** lets the chat call work
 
 When Agent mode is on, the chat header shows an **Agent** badge and a **Tools** menu. Open Tools to toggle which tools the model may call (preferences are saved). Write tools (`create_note`, `update_note`) are labeled clearly. Only enabled tools are sent to the model.
 
+Use the **Model** control in the chat header (next to Agent / Tools / Reset) to switch models. For OpenAI-compatible endpoints it loads `GET /v1/models` (e.g. LM Studio). If listing fails, type a custom model id. The choice is saved to Settings → AI → Model.
+
 Tool calling must be supported by the model. In **LM Studio**, some models fail with a server-side **Channel Error** when `tools` are present (prompt-template / function-calling incompatibility). The app retries once without tools and shows a notice in the chat. Prefer a tool-capable model, or turn Agent mode off for models that reject tools.
 
 Long `create_note` bodies can take several minutes on local models. The app uses an extended request timeout for chat completions and, if a write succeeded but the final reply failed, still shows a local success line such as `Created note: {title} (id …)`.
+
+The agent must not claim create/update/revert success without a successful tool result in that turn. If it narrates success without calling a write tool, the app nudges it to call the tool, and if it still claims success, replaces the reply with a clear "not applied" message and a warning in the panel.
 
 <!-- cSpell:disable -->
 Example that often works for tools in LM Studio: `qwen3.6-27b`. Models such as `gemma-4-31b-it` commonly hit Channel Error when `tools` are included.
 <!-- cSpell:enable -->
 
+## Conversation persistence
+
+Completed chat turns are auto-appended to a note under the **`_AI Chats`** notebook in your vault (created on first send). Each Reset starts a new transcript note. Transcripts are searchable, included in backups, and local — recommended for OMIS demos over in-memory-only chat.
+
+The live panel conversation is still kept in memory while the app is running (survives panel hide/show). Restarting the app clears the panel UI, but transcript notes remain in the vault.
+
 ## Limitations of the current version
 
 - **Markdown editor only.** The rich text (WYSIWYG) editor doesn't support the chat panel's automatic edits yet.
 - **No streaming.** Long replies appear all at once when the model has finished, not progressively.
-- **No conversation history across restarts.** Conversations are kept while Joplin is running but are not saved to disk.
+- **Panel UI history is in-memory.** The sidebar conversation clears on restart; vault transcripts under `_AI Chats` persist.
 - **Very large notes.** Notes that exceed the model's context window can't be sent in full; select the relevant section and ask about that.

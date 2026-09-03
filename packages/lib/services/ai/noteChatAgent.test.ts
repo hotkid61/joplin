@@ -23,6 +23,13 @@ describe('noteChatAgent', () => {
 			.toContain('Updating note');
 		expect(_internal.toolActivitySummary('update_note', { id: 'a1b2c3d4e5f6' }, 'end'))
 			.toBe('Updated note a1b2c3d4e5f6');
+		expect(_internal.toolActivitySummary(
+			'update_note',
+			{ id: 'a1b2c3d4e5f6' },
+			'end',
+			false,
+			JSON.stringify({ id: 'a1b2c3d4e5f6abcd', title: 'Briefing' }),
+		)).toBe('Updated note: Briefing (id a1b2c3d4e5f6)');
 		expect(_internal.toolActivitySummary('create_note', { title: 'x' }, 'end', true))
 			.toBe('create_note failed');
 		expect(_internal.toolActivitySummary(
@@ -51,7 +58,24 @@ describe('noteChatAgent', () => {
 		expect(prompt).toContain('Never delete notes');
 		expect(prompt).toContain('Body text');
 		expect(prompt).toContain('keep the body concise');
+		expect(prompt).toContain('NEVER claim success');
+		expect(prompt).toContain('notebook_id="default"');
 		expect(prompt).not.toContain('"edits"');
+	});
+
+	test('claimsUnverifiedWriteSuccess detects success narration without tools', () => {
+		expect(_internal.claimsUnverifiedWriteSuccess(
+			'The briefing note title has been changed back to "testing actions demo".',
+		)).toBe(true);
+		expect(_internal.claimsUnverifiedWriteSuccess(
+			'The title of the note has been successfully updated back to its original name.',
+		)).toBe(true);
+		expect(_internal.claimsUnverifiedWriteSuccess(
+			'I will now update the note title.',
+		)).toBe(false);
+		expect(_internal.claimsUnverifiedWriteSuccess(
+			'Listed notebooks in the vault.',
+		)).toBe(false);
 	});
 
 	test('invokeAgentTool rejects delete_note', async () => {

@@ -346,4 +346,34 @@ describe('McpServer', () => {
 		expect(updated.title).toBe('New');
 		expect(updated.body).toBe('Keep');
 	});
+
+	test('update_note resolves notebook_id "default" without failing', async () => {
+		const folder = await Folder.save({ title: 'Inbox' });
+		const note = await Note.save({ title: 'Original', body: 'Keep', parent_id: folder.id });
+
+		const response = await McpServer.instance().handleRequest({
+			jsonrpc: '2.0', id: 1, method: 'tools/call',
+			params: { name: 'update_note', arguments: { id: note.id, title: 'Renamed', notebook_id: 'default' } },
+		});
+		expect(response.result.isError).toBeFalsy();
+
+		const updated = await Note.load(note.id);
+		expect(updated.title).toBe('Renamed');
+		expect(updated.parent_id).toBeTruthy();
+	});
+
+	test('update_note can move by notebook title', async () => {
+		const from = await Folder.save({ title: 'From' });
+		const to = await Folder.save({ title: '_Inbox' });
+		const note = await Note.save({ title: 'Move me', body: '', parent_id: from.id });
+
+		const response = await McpServer.instance().handleRequest({
+			jsonrpc: '2.0', id: 1, method: 'tools/call',
+			params: { name: 'update_note', arguments: { id: note.id, notebook_id: '_Inbox' } },
+		});
+		expect(response.result.isError).toBeFalsy();
+
+		const updated = await Note.load(note.id);
+		expect(updated.parent_id).toBe(to.id);
+	});
 });

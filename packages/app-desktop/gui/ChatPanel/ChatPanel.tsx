@@ -12,12 +12,18 @@ import { AiChatMessage, AppState } from '../../app.reducer';
 import { runNoteChat, ChatTurn } from '@joplin/lib/services/ai/noteChat';
 import { applyAnchorEdits } from '@joplin/lib/services/ai/applyNoteEdits';
 import { chatAvailability } from '@joplin/lib/services/ai/availability';
+import listChatModels from '@joplin/lib/services/ai/listChatModels';
+import {
+	appendChatTranscriptSafe,
+	createChatTranscriptNote,
+} from '@joplin/lib/services/ai/chatTranscript';
 import {
 	agentWorkspaceToolIds,
 	agentWriteToolIds,
 	setAgentToolEnabled,
 } from '@joplin/lib/services/mcp/registry';
 import { WindowIdContext } from '../NewWindowOrIFrame';
+import AiService from '@joplin/lib/services/ai/AiService';
 
 const logger = Logger.create('ChatPanel');
 
@@ -26,6 +32,8 @@ interface Props {
 	available: boolean;
 	unavailableHint: string;
 	providerType: string;
+	chatModel: string;
+	chatBaseUrl: string;
 	noteId: string | null;
 	noteTitle: string;
 	noteIsEncrypted: boolean;
@@ -105,6 +113,10 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const [sending, setSending] = useState(false);
 	const [statusText, setStatusText] = useState('');
 	const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+	const [modelMenuOpen, setModelMenuOpen] = useState(false);
+	const [modelOptions, setModelOptions] = useState<string[]>([]);
+	const [modelsLoading, setModelsLoading] = useState(false);
+	const [modelCustom, setModelCustom] = useState('');
 	const [disclosureShown, setDisclosureShown] = useState<boolean>(() => {
 		try {
 			return !!Setting.value(disclosureSetting);
@@ -121,6 +133,8 @@ const ChatPanel: React.FC<Props> = (props) => {
 	noteIdRef.current = props.noteId;
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const toolsMenuRef = useRef<HTMLDivElement>(null);
+	const modelMenuRef = useRef<HTMLDivElement>(null);
+	const transcriptNoteIdRef = useRef<string | null>(null);
 
 	// Bumped on Reset / unmount so an in-flight reply can detect it should
 	// abort instead of landing in a cleared or destroyed conversation.
@@ -153,14 +167,21 @@ const ChatPanel: React.FC<Props> = (props) => {
 	}, [messages, statusText]);
 
 	useEffect(() => {
-		if (!toolsMenuOpen) return undefined;
+		if (!toolsMenuOpen && !modelMenuOpen) return undefined;
 		const onPointerDown = (event: MouseEvent) => {
-			if (!toolsMenuRef.current?.contains(event.target as Node)) {
+			const target = event.target as Node;
+			if (toolsMenuOpen && toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
 				setToolsMenuOpen(false);
+			}
+			if (modelMenuOpen && modelMenuRef.current && !modelMenuRef.current.contains(target)) {
+				setModelMenuOpen(false);
 			}
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') setToolsMenuOpen(false);
+			if (event.key === 'Escape') {
+				setToolsMenuOpen(false);
+				setModelMenuOpen(false);
+			}
 		};
 		document.addEventListener('mousedown', onPointerDown);
 		document.addEventListener('keydown', onKeyDown);
@@ -168,7 +189,23 @@ const ChatPanel: React.FC<Props> = (props) => {
 			document.removeEventListener('mousedown', onPointerDown);
 			document.removeEventListener('keydown', onKeyDown);
 		};
-	}, [toolsMenuOpen]);
+	}, [toolsMenuOpen, modelMenuOpen]);
+
+	useEffect(() => {
+		if (!modelMenuOpen) return undefined;
+		let cancelled = false;
+		const load = async () => {
+			setModelsLoading(true);
+			const models = await listChatModels();
+			if (cancelled) return;
+			const current = (props.chatModel || '').trim();
+			const merged = current && !models.includes(current) ? [current, ...models] : models;
+			setModelOptions(merged);
+			setModelsLoading(false);
+		};
+		void load();
+		return () => { cancelled = true; };
+	}, [modelMenuOpen, props.chatModel, props.chatBaseUrl, props.providerType]);
 
 	const conversationTurns = useMemo<ChatTurn[]>(() => {
 		return messages
@@ -198,6 +235,22 @@ const ChatPanel: React.FC<Props> = (props) => {
 		setAgentToolEnabled(id, enabled);
 	}, []);
 
+	const handleSelectModel = useCallback((modelId: string) => {
+		const next = modelId.trim();
+		if (!next) return;
+		Setting.setValue('ai.chat.model', next);
+		AiService.instance().invalidateProvider();
+		setModelMenuOpen(false);
+		setModelCustom('');
+	}, []);
+
+	const ensureTranscriptNote = useCallback(async () => {
+		if (transcriptNoteIdRef.current) return transcriptNoteIdRef.current;
+		const created = await createChatTranscriptNote();
+		transcriptNoteIdRef.current = created.id;
+		return created.id;
+	}, []);
+
 	const handleSend = useCallback(async () => {
 		const text = input.trim();
 		if (!text || sending) return;
@@ -212,6 +265,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 		setStatusText(props.agentMode ? _('Agent thinking…') : '');
 		setInput('');
 		setToolsMenuOpen(false);
+		setModelMenuOpen(false);
 
 		// Captured so we can roll it back on failure — otherwise a retry would
 		// send the prior user turn as history alongside the new prompt.
@@ -219,8 +273,12 @@ const ChatPanel: React.FC<Props> = (props) => {
 		appendMessage({ id: userTurnId, role: 'user', text });
 
 		let toolActivitySeen = false;
+		const toolSummaries: string[] = [];
 
 		try {
+			const transcriptId = await ensureTranscriptNote();
+			await appendChatTranscriptSafe(transcriptId, [{ role: 'user', text }]);
+
 			const note = await Note.load(props.noteId);
 			if (!note) throw new Error(`Note not found: ${props.noteId}`);
 
@@ -241,6 +299,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 				setStatusText(event.summary);
 				if (event.phase === 'end') {
 					toolActivitySeen = true;
+					toolSummaries.push(event.summary);
 					appendMessage({
 						id: makeId(),
 						role: 'tool',
@@ -312,13 +371,24 @@ const ChatPanel: React.FC<Props> = (props) => {
 
 			if (generationRef.current !== startGeneration) return;
 
+			const assistantText = reply.reply || _('(no message)');
 			appendMessage({
 				id: makeId(),
 				role: 'assistant',
-				text: reply.reply || _('(no message)'),
+				text: assistantText,
 				editsApplied,
 				editsMissed,
 			});
+			if (reply.warning) {
+				appendMessage({ id: makeId(), role: 'error', text: reply.warning });
+			}
+
+			const transcriptEntries = [
+				...toolSummaries.map(summary => ({ role: 'tool' as const, text: summary })),
+				{ role: 'assistant' as const, text: assistantText },
+				...(reply.warning ? [{ role: 'error' as const, text: reply.warning }] : []),
+			];
+			await appendChatTranscriptSafe(transcriptId, transcriptEntries);
 		} catch (error) {
 			logger.warn('Chat failed:', error);
 			if (generationRef.current !== startGeneration) return;
@@ -328,12 +398,14 @@ const ChatPanel: React.FC<Props> = (props) => {
 				dispatch({ type: 'AI_CHAT_REMOVE', windowId, id: userTurnId });
 				setInput(text);
 			}
-			appendMessage({ id: makeId(), role: 'error', text: formatChatError(error) });
+			const errText = formatChatError(error);
+			appendMessage({ id: makeId(), role: 'error', text: errText });
+			await appendChatTranscriptSafe(transcriptNoteIdRef.current, [{ role: 'error', text: errText }]);
 		} finally {
 			setSending(false);
 			setStatusText('');
 		}
-	}, [input, sending, props.noteId, props.agentMode, conversationTurns, windowId, appendMessage, dispatch]);
+	}, [input, sending, props.noteId, props.agentMode, conversationTurns, windowId, appendMessage, dispatch, ensureTranscriptNote]);
 
 	const handleAcknowledgeDisclosure = useCallback(() => {
 		Setting.setValue(disclosureSetting, true);
@@ -344,6 +416,8 @@ const ChatPanel: React.FC<Props> = (props) => {
 		generationRef.current++;
 		setStatusText('');
 		setToolsMenuOpen(false);
+		setModelMenuOpen(false);
+		transcriptNoteIdRef.current = null;
 		dispatch({ type: 'AI_CHAT_RESET', windowId: windowId });
 	}, [dispatch, windowId]);
 
@@ -386,48 +460,119 @@ const ChatPanel: React.FC<Props> = (props) => {
 		<div className='chat-panel'>
 			<div className='header'>
 				<span className='title'>{_('AI Chat')}</span>
-				{props.agentMode && (
-					<div className='agent-toolbar' ref={toolsMenuRef}>
-						<span className='agent-badge' title={_('Agent can search and edit notes')}>{_('Agent')}</span>
+				<div className='header-actions'>
+					<div className='model-toolbar' ref={modelMenuRef}>
 						<button
 							type='button'
-							className='tools-toggle'
-							aria-expanded={toolsMenuOpen}
+							className='model-toggle'
+							aria-expanded={modelMenuOpen}
 							aria-haspopup='true'
-							onClick={() => setToolsMenuOpen(open => !open)}
-							title={_('Choose which tools the agent may use')}
+							onClick={() => {
+								setModelMenuOpen(open => !open);
+								setToolsMenuOpen(false);
+							}}
+							title={_('Switch chat model')}
 						>
-							{_('Tools')}
-							<span className='tools-count'>{enabledToolCount}/{toolRows.length}</span>
+							<span className='model-label'>{_('Model')}</span>
+							<span className='model-value'>{props.chatModel || _('(none)')}</span>
 						</button>
-						{toolsMenuOpen && (
-							<div className='tools-menu' role='menu'>
-								<div className='tools-menu-title'>{_('Available tools')}</div>
-								{toolRows.map(tool => (
-									<label key={tool.id} className={`tools-menu-row ${tool.isWrite ? '-write' : ''}`}>
-										<input
-											type='checkbox'
-											checked={tool.enabled}
-											onChange={(e) => handleToggleTool(tool.id, e.target.checked)}
-										/>
-										<span className='tools-menu-label'>
-											{tool.label}
-											{tool.isWrite ? (
-												<span className='tools-write-tag'>{_('write')}</span>
-											) : null}
-										</span>
-									</label>
-								))}
-								<div className='tools-menu-hint'>
-									{_('Writes can create or change notes across your vault. Turn a tool off to hide it from the model.')}
+						{modelMenuOpen && (
+							<div className='model-menu' role='menu'>
+								<div className='model-menu-title'>{_('Chat model')}</div>
+								{modelsLoading ? (
+									<div className='model-menu-hint'>{_('Loading models…')}</div>
+								) : modelOptions.length > 0 ? (
+									<ul className='model-menu-list'>
+										{modelOptions.map(id => (
+											<li key={id}>
+												<button
+													type='button'
+													className={`model-menu-item ${id === props.chatModel ? '-active' : ''}`}
+													onClick={() => handleSelectModel(id)}
+												>
+													{id}
+												</button>
+											</li>
+										))}
+									</ul>
+								) : (
+									<div className='model-menu-hint'>
+										{_('Could not list models from the endpoint. Enter a model id below, or set it in Settings → AI.')}
+									</div>
+								)}
+								<div className='model-custom-row'>
+									<input
+										type='text'
+										className='model-custom-input'
+										value={modelCustom}
+										onChange={(e) => setModelCustom(e.target.value)}
+										placeholder={_('Custom model id…')}
+										aria-label={_('Custom model id')}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') {
+												e.preventDefault();
+												handleSelectModel(modelCustom);
+											}
+										}}
+									/>
+									<button
+										type='button'
+										className='model-custom-apply'
+										onClick={() => handleSelectModel(modelCustom)}
+										disabled={!modelCustom.trim()}
+									>
+										{_('Use')}
+									</button>
 								</div>
 							</div>
 						)}
 					</div>
-				)}
-				{messages.length > 0 && (
-					<button type='button' className='reset' onClick={handleReset}>{_('Reset')}</button>
-				)}
+					{props.agentMode && (
+						<div className='agent-toolbar' ref={toolsMenuRef}>
+							<span className='agent-badge' title={_('Agent can search and edit notes')}>{_('Agent')}</span>
+							<button
+								type='button'
+								className='tools-toggle'
+								aria-expanded={toolsMenuOpen}
+								aria-haspopup='true'
+								onClick={() => {
+									setToolsMenuOpen(open => !open);
+									setModelMenuOpen(false);
+								}}
+								title={_('Choose which tools the agent may use')}
+							>
+								{_('Tools')}
+								<span className='tools-count'>{enabledToolCount}/{toolRows.length}</span>
+							</button>
+							{toolsMenuOpen && (
+								<div className='tools-menu' role='menu'>
+									<div className='tools-menu-title'>{_('Available tools')}</div>
+									{toolRows.map(tool => (
+										<label key={tool.id} className={`tools-menu-row ${tool.isWrite ? '-write' : ''}`}>
+											<input
+												type='checkbox'
+												checked={tool.enabled}
+												onChange={(e) => handleToggleTool(tool.id, e.target.checked)}
+											/>
+											<span className='tools-menu-label'>
+												{tool.label}
+												{tool.isWrite ? (
+													<span className='tools-write-tag'>{_('write')}</span>
+												) : null}
+											</span>
+										</label>
+									))}
+									<div className='tools-menu-hint'>
+										{_('Writes can create or change notes across your vault. Turn a tool off to hide it from the model.')}
+									</div>
+								</div>
+							)}
+						</div>
+					)}
+					{messages.length > 0 && (
+						<button type='button' className='reset' onClick={handleReset}>{_('Reset')}</button>
+					)}
+				</div>
 			</div>
 			<div className='messages'>
 				{messages.length === 0 && (
@@ -516,6 +661,8 @@ const mapStateToProps = (state: AppState, ownProps: OwnProps) => {
 		available: availability.available,
 		unavailableHint: availability.hint ?? '',
 		providerType: state.settings['ai.chat.providerType'] || 'openai-compatible',
+		chatModel: state.settings['ai.chat.model'] || '',
+		chatBaseUrl: state.settings['ai.chat.baseUrl'] || '',
 		noteId,
 		noteTitle: note?.title || '',
 		noteIsEncrypted: !!note?.encryption_applied,

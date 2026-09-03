@@ -49,6 +49,8 @@ export interface NoteContext {
 export interface ChatReply {
 	reply: string;
 	edits: EditOp[];
+	// Set when the agent claimed a write succeeded without a successful tool result.
+	warning?: string;
 }
 
 // ~250 tokens, always on. Without this the model defaults to plain CommonMark
