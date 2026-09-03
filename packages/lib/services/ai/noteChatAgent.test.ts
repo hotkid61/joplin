@@ -9,7 +9,9 @@ describe('noteChatAgent', () => {
 		const names = defs.map(d => d.name);
 		expect(names).toEqual(expect.arrayContaining([...agentWorkspaceToolIds]));
 		expect(names).not.toContain('delete_note');
-		expect(names).not.toContain('create_notebook');
+		expect(names).toContain('create_notebook');
+		expect(names).toContain('list_notes');
+		expect(names).toContain('open_note');
 		for (const def of defs) {
 			expect(def.description.length).toBeGreaterThan(0);
 			expect(def.parameters).toBeTruthy();

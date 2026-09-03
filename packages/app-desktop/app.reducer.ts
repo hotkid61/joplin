@@ -18,6 +18,9 @@ export interface AiChatMessage {
 	editsMissed?: number;
 	isWrite?: boolean;
 	isError?: boolean;
+	noteId?: string;
+	noteTitle?: string;
+	citations?: { noteId: string; title: string }[];
 }
 
 export interface AppStateRoute {
@@ -302,6 +305,12 @@ export default function(state: AppState, action: any) {
 		case 'AI_CHAT_RESET':
 			newState = withWindowStateUpdated(
 				state, action.windowId, 'aiChatMessages', (): AiChatMessage[] => [],
+			);
+			break;
+
+		case 'AI_CHAT_SET':
+			newState = withWindowStateUpdated(
+				state, action.windowId, 'aiChatMessages', (): AiChatMessage[] => (action.messages as AiChatMessage[]) || [],
 			);
 			break;
 

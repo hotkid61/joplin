@@ -1715,9 +1715,14 @@ packages/lib/services/mcp/registry.js
 packages/lib/services/mcp/tools/createNote.js
 packages/lib/services/mcp/tools/createNotebook.js
 packages/lib/services/mcp/tools/deleteNote.js
+packages/lib/services/mcp/tools/getActiveNote.js
+packages/lib/services/mcp/tools/getOrCreateDailyNote.js
+packages/lib/services/mcp/tools/getVaultStats.js
 packages/lib/services/mcp/tools/listNotebooks.js
+packages/lib/services/mcp/tools/listNotes.js
 packages/lib/services/mcp/tools/listTags.js
 packages/lib/services/mcp/tools/manageTags.js
+packages/lib/services/mcp/tools/openNote.js
 packages/lib/services/mcp/tools/readNote.js
 packages/lib/services/mcp/tools/searchNotes.js
 packages/lib/services/mcp/tools/semanticSearchNotes.js

@@ -6,7 +6,7 @@ import JSON5 from 'json5';
 import Setting from '../../models/Setting';
 import findFencedBlock from './utils/findFencedBlock';
 import { fetchRelatedNoteExcerpts, RelatedNoteExcerpt } from './relatedNotesContext';
-import { AgentProgressCallback, runNoteChatAgent } from './noteChatAgent';
+import { AgentProgressCallback, AgentWriteConfirmCallback, runNoteChatAgent } from './noteChatAgent';
 
 const logger = Logger.create('noteChat');
 
@@ -51,6 +51,7 @@ export interface ChatReply {
 	edits: EditOp[];
 	// Set when the agent claimed a write succeeded without a successful tool result.
 	warning?: string;
+	relatedNotes?: RelatedNoteExcerpt[];
 }
 
 // ~250 tokens, always on. Without this the model defaults to plain CommonMark
@@ -273,6 +274,7 @@ export const runNoteChat = async (
 	userMessage: string,
 	onProgress?: AgentProgressCallback,
 	signal?: AbortSignal,
+	confirmWrite?: AgentWriteConfirmCallback,
 ): Promise<ChatReply> => {
 	throwIfAiAborted(signal);
 	const relatedNotes = note.relatedNotes
@@ -286,9 +288,16 @@ export const runNoteChat = async (
 		logger.info(`Including ${relatedNotes.length} related note excerpt(s) in chat context`);
 	}
 
+	const withCitations = (reply: ChatReply): ChatReply => (
+		relatedNotes.length ? { ...reply, relatedNotes } : reply
+	);
+
 	if (Setting.value('ai.chat.agentMode')) {
 		logger.info('Running AI Chat in agent mode (workspace tools enabled)');
-		return runNoteChatAgent(noteWithContext, history, userMessage, onProgress, signal);
+		const agentReply = await runNoteChatAgent(
+			noteWithContext, history, userMessage, onProgress, signal, confirmWrite,
+		);
+		return withCitations(agentReply);
 	}
 
 	const messages: ChatMessage[] = [
@@ -313,7 +322,7 @@ export const runNoteChat = async (
 		signal,
 	});
 	throwIfAiAborted(signal);
-	return enforceSelectionScope(tryParseReply(result.text), note.selection);
+	return withCitations(enforceSelectionScope(tryParseReply(result.text), note.selection));
 };
 
 // Defence-in-depth: the prompt already tells the model to only use

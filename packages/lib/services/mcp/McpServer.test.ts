@@ -12,12 +12,17 @@ const allToolSettings = [
 	'mcp.tool.semantic_search_notes.enabled',
 	'mcp.tool.read_note.enabled',
 	'mcp.tool.list_notebooks.enabled',
+	'mcp.tool.list_notes.enabled',
 	'mcp.tool.list_tags.enabled',
 	'mcp.tool.create_note.enabled',
 	'mcp.tool.update_note.enabled',
 	'mcp.tool.delete_note.enabled',
 	'mcp.tool.manage_tags.enabled',
 	'mcp.tool.create_notebook.enabled',
+	'mcp.tool.open_note.enabled',
+	'mcp.tool.get_active_note.enabled',
+	'mcp.tool.get_vault_stats.enabled',
+	'mcp.tool.get_or_create_daily_note.enabled',
 ];
 
 const enableAllTools = () => {

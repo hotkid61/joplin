@@ -17,6 +17,9 @@ import listChatModels from '@joplin/lib/services/ai/listChatModels';
 import {
 	appendChatTranscriptSafe,
 	createChatTranscriptNote,
+	listChatTranscriptThreads,
+	loadChatTranscriptThread,
+	ChatThreadSummary,
 } from '@joplin/lib/services/ai/chatTranscript';
 import {
 	ChatAttachmentExtracted,
@@ -51,6 +54,7 @@ interface Props {
 	messages: AiChatMessage[];
 	agentMode: boolean;
 	includeRelatedNotes: boolean;
+	confirmWrites: boolean;
 	enabledTools: Record<string, boolean>;
 	dispatch: Dispatch;
 }
@@ -68,6 +72,35 @@ const disclosureSetting = 'ai.chat.disclosureAcknowledged';
 
 let nextMessageId = 0;
 const makeId = () => `m-${Date.now()}-${++nextMessageId}`;
+
+const noteIdFromToolText = (text: string) => {
+	const m = (text || '').match(/\bid\s+([a-f0-9]{32})\b/i) || (text || '').match(/\b([a-f0-9]{32})\b/i);
+	return m ? m[1] : '';
+};
+
+const suggestedPrompts = (agentMode: boolean) => {
+	if (agentMode) {
+		return [
+			_('Summarize related notes for Friday'),
+			_('Draft a Friday Brief from vault context'),
+			_('List open asks and owners'),
+			_('Open today\'s daily note'),
+		];
+	}
+	return [
+		_('Summarize this note'),
+		_('Extract action items'),
+		_('Rewrite more concisely'),
+		_('What am I missing?'),
+	];
+};
+
+const estimateContextTokens = (noteBody: string, history: ChatTurn[], userText: string) => {
+	const chars = (noteBody || '').length
+		+ history.reduce((sum, t) => sum + (t.content || '').length, 0)
+		+ (userText || '').length;
+	return Math.ceil(chars / 4);
+};
 
 const editsSummary = (applied: number, missed: number) => {
 	if (applied + missed === 0) return '';
@@ -114,12 +147,26 @@ const agentToolLabel = (id: string) => {
 		return _('Read note');
 	case 'list_notebooks':
 		return _('List notebooks');
+	case 'list_notes':
+		return _('List notes');
 	case 'list_tags':
 		return _('List tags');
 	case 'create_note':
 		return _('Create note');
 	case 'update_note':
 		return _('Update note');
+	case 'manage_tags':
+		return _('Manage tags');
+	case 'create_notebook':
+		return _('Create notebook');
+	case 'open_note':
+		return _('Open note');
+	case 'get_active_note':
+		return _('Active note');
+	case 'get_vault_stats':
+		return _('Vault stats');
+	case 'get_or_create_daily_note':
+		return _('Daily note');
 	default:
 		return id;
 	}
@@ -136,6 +183,10 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const [statusText, setStatusText] = useState('');
 	const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
 	const [modelMenuOpen, setModelMenuOpen] = useState(false);
+	const [threadsMenuOpen, setThreadsMenuOpen] = useState(false);
+	const [threads, setThreads] = useState<ChatThreadSummary[]>([]);
+	const [threadsLoading, setThreadsLoading] = useState(false);
+	const [contextTokens, setContextTokens] = useState(0);
 	const [modelOptions, setModelOptions] = useState<string[]>([]);
 	const [modelsLoading, setModelsLoading] = useState(false);
 	const [modelCustom, setModelCustom] = useState('');
@@ -157,6 +208,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const toolsMenuRef = useRef<HTMLDivElement>(null);
 	const modelMenuRef = useRef<HTMLDivElement>(null);
+	const threadsMenuRef = useRef<HTMLDivElement>(null);
 	const transcriptNoteIdRef = useRef<string | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -194,7 +246,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	}, [messages, statusText]);
 
 	useEffect(() => {
-		if (!toolsMenuOpen && !modelMenuOpen) return undefined;
+		if (!toolsMenuOpen && !modelMenuOpen && !threadsMenuOpen) return undefined;
 		const onPointerDown = (event: MouseEvent) => {
 			const target = event.target as Node;
 			if (toolsMenuOpen && toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
@@ -203,11 +255,15 @@ const ChatPanel: React.FC<Props> = (props) => {
 			if (modelMenuOpen && modelMenuRef.current && !modelMenuRef.current.contains(target)) {
 				setModelMenuOpen(false);
 			}
+			if (threadsMenuOpen && threadsMenuRef.current && !threadsMenuRef.current.contains(target)) {
+				setThreadsMenuOpen(false);
+			}
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
 				setToolsMenuOpen(false);
 				setModelMenuOpen(false);
+				setThreadsMenuOpen(false);
 			}
 		};
 		document.addEventListener('mousedown', onPointerDown);
@@ -216,7 +272,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 			document.removeEventListener('mousedown', onPointerDown);
 			document.removeEventListener('keydown', onKeyDown);
 		};
-	}, [toolsMenuOpen, modelMenuOpen]);
+	}, [toolsMenuOpen, modelMenuOpen, threadsMenuOpen]);
 
 	useEffect(() => {
 		if (!modelMenuOpen) return undefined;
@@ -256,6 +312,26 @@ const ChatPanel: React.FC<Props> = (props) => {
 	}, [props.enabledTools]);
 
 	const enabledToolCount = toolRows.filter(t => t.enabled).length;
+
+	useEffect(() => {
+		let cancelled = false;
+		const run = async () => {
+			let body = '';
+			if (props.noteId) {
+				try {
+					const note = await Note.load(props.noteId);
+					body = note?.body || '';
+				} catch {
+					body = '';
+				}
+			}
+			if (cancelled) return;
+			setContextTokens(estimateContextTokens(body, conversationTurns, input));
+		};
+		void run();
+		return () => { cancelled = true; };
+	}, [props.noteId, conversationTurns, input]);
+
 	const attachmentsReady = attachments.length > 0 && attachments.every(a => !a.extracting && !!a.extracted && !a.error);
 	const canSend = (!!input.trim() || attachmentsReady) && !sending && !attachments.some(a => a.extracting);
 
@@ -275,6 +351,58 @@ const ChatPanel: React.FC<Props> = (props) => {
 		setModelMenuOpen(false);
 		setModelCustom('');
 	}, []);
+
+	const handleSetAgentMode = useCallback((enabled: boolean) => {
+		Setting.setValue('ai.chat.agentMode', enabled);
+		setModelMenuOpen(false);
+	}, []);
+
+	const handleOpenNote = useCallback(async (noteId: string) => {
+		if (!noteId) return;
+		try {
+			await CommandService.instance().execute('openNote', noteId);
+		} catch (error) {
+			logger.warn('Open note from chat failed:', error);
+		}
+	}, []);
+
+	const handleOpenThreads = useCallback(async () => {
+		setThreadsMenuOpen(open => !open);
+		setToolsMenuOpen(false);
+		setModelMenuOpen(false);
+		setThreadsLoading(true);
+		try {
+			const list = await listChatTranscriptThreads(40);
+			setThreads(list);
+		} catch (error) {
+			logger.warn('List chat threads failed:', error);
+			setThreads([]);
+		} finally {
+			setThreadsLoading(false);
+		}
+	}, []);
+
+	const handleLoadThread = useCallback(async (threadId: string) => {
+		try {
+			const loaded = await loadChatTranscriptThread(threadId);
+			transcriptNoteIdRef.current = loaded.id;
+			const mapped: AiChatMessage[] = loaded.messages.map(m => ({
+				id: makeId(),
+				role: m.role,
+				text: m.text,
+				noteId: m.role === 'tool' ? noteIdFromToolText(m.text) : undefined,
+			}));
+			dispatch({ type: 'AI_CHAT_SET', windowId, messages: mapped });
+			setThreadsMenuOpen(false);
+		} catch (error) {
+			logger.warn('Load chat thread failed:', error);
+			appendMessage({
+				id: makeId(),
+				role: 'error',
+				text: _('Could not load that chat thread.'),
+			});
+		}
+	}, [dispatch, windowId, appendMessage]);
 
 	const ensureTranscriptNote = useCallback(async () => {
 		if (transcriptNoteIdRef.current) return transcriptNoteIdRef.current;
@@ -420,9 +548,17 @@ const ChatPanel: React.FC<Props> = (props) => {
 						text: event.summary,
 						isWrite: event.isWrite,
 						isError: event.isError,
+						noteId: event.noteId || noteIdFromToolText(event.summary) || undefined,
+						noteTitle: event.noteTitle,
 					});
 				}
-			}, controller.signal);
+			}, controller.signal, props.confirmWrites ? async (info) => {
+				const ok = bridge().showConfirmMessageBox(
+					_('Allow agent to run %s?\n\n%s', info.toolName, info.summary),
+					{ title: _('Confirm agent write') },
+				);
+				return !!ok;
+			} : undefined);
 
 			if (generationRef.current !== startGeneration) return;
 
@@ -492,6 +628,10 @@ const ChatPanel: React.FC<Props> = (props) => {
 				text: assistantText,
 				editsApplied,
 				editsMissed,
+				citations: (reply.relatedNotes || []).map(r => ({
+					noteId: r.noteId,
+					title: r.title || _('(untitled)'),
+				})),
 			});
 			if (reply.warning) {
 				appendMessage({ id: makeId(), role: 'error', text: reply.warning });
@@ -537,7 +677,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 				setStatusText('');
 			}
 		}
-	}, [input, attachments, sending, props.noteId, props.agentMode, conversationTurns, windowId, appendMessage, dispatch, ensureTranscriptNote]);
+	}, [input, attachments, sending, props.noteId, props.agentMode, props.confirmWrites, conversationTurns, windowId, appendMessage, dispatch, ensureTranscriptNote]);
 
 	const handleAcknowledgeDisclosure = useCallback(() => {
 		Setting.setValue(disclosureSetting, true);
@@ -552,10 +692,18 @@ const ChatPanel: React.FC<Props> = (props) => {
 		setStatusText('');
 		setToolsMenuOpen(false);
 		setModelMenuOpen(false);
+		setThreadsMenuOpen(false);
 		setAttachments([]);
 		transcriptNoteIdRef.current = null;
 		dispatch({ type: 'AI_CHAT_RESET', windowId: windowId });
 	}, [dispatch, windowId]);
+
+	const handleRetryLast = useCallback(() => {
+		if (sending) return;
+		const lastUser = [...messages].reverse().find(m => m.role === 'user');
+		if (!lastUser) return;
+		setInput(lastUser.modelContent || lastUser.text);
+	}, [sending, messages]);
 
 	const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		// Don't send while an IME composition is in flight — Enter commits
@@ -597,6 +745,52 @@ const ChatPanel: React.FC<Props> = (props) => {
 			<div className='header'>
 				<span className='title'>{_('AI Chat')}</span>
 				<div className='header-actions'>
+					<div className='threads-toolbar' ref={threadsMenuRef}>
+						<button
+							type='button'
+							className='threads-toggle'
+							aria-expanded={threadsMenuOpen}
+							aria-haspopup='true'
+							onClick={() => { void handleOpenThreads(); }}
+							title={_('Past AI chats')}
+						>
+							{_('Chats')}
+						</button>
+						{threadsMenuOpen && (
+							<div className='threads-menu' role='menu'>
+								<div className='threads-menu-title'>{_('Past chats')}</div>
+								{threadsLoading ? (
+									<div className='threads-menu-hint'>{_('Loading…')}</div>
+								) : threads.length ? (
+									<ul className='threads-menu-list'>
+										{threads.map(t => (
+											<li key={t.id}>
+												<button
+													type='button'
+													className={`threads-menu-item ${t.id === transcriptNoteIdRef.current ? '-active' : ''}`}
+													onClick={() => { void handleLoadThread(t.id); }}
+												>
+													{t.title}
+												</button>
+											</li>
+										))}
+									</ul>
+								) : (
+									<div className='threads-menu-hint'>{_('No saved chats yet. Send a message to create one under _AI Chats.')}</div>
+								)}
+								<button
+									type='button'
+									className='threads-new'
+									onClick={() => {
+										handleReset();
+										setThreadsMenuOpen(false);
+									}}
+								>
+									{_('New chat')}
+								</button>
+							</div>
+						)}
+					</div>
 					<div className='model-toolbar' ref={modelMenuRef}>
 						<button
 							type='button'
@@ -606,6 +800,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 							onClick={() => {
 								setModelMenuOpen(open => !open);
 								setToolsMenuOpen(false);
+								setThreadsMenuOpen(false);
 							}}
 							title={_('Switch chat model')}
 						>
@@ -636,6 +831,22 @@ const ChatPanel: React.FC<Props> = (props) => {
 										{_('Could not list models from the endpoint. Enter a model id below, or set it in Settings → AI.')}
 									</div>
 								)}
+								<div className='model-preset-row'>
+									<button
+										type='button'
+										className={`model-preset ${!props.agentMode ? '-active' : ''}`}
+										onClick={() => handleSetAgentMode(false)}
+									>
+										{_('Chat')}
+									</button>
+									<button
+										type='button'
+										className={`model-preset ${props.agentMode ? '-active' : ''}`}
+										onClick={() => handleSetAgentMode(true)}
+									>
+										{_('Agent')}
+									</button>
+								</div>
 								<div className='model-custom-row'>
 									<input
 										type='text'
@@ -713,7 +924,19 @@ const ChatPanel: React.FC<Props> = (props) => {
 			<div className='messages'>
 				{messages.length === 0 && (
 					<div className='empty'>
-						{emptyHint(props.agentMode, props.includeRelatedNotes)}
+						<div className='empty-hint'>{emptyHint(props.agentMode, props.includeRelatedNotes)}</div>
+						<div className='suggested-prompts' aria-label={_('Suggested prompts')}>
+							{suggestedPrompts(props.agentMode).map(prompt => (
+								<button
+									key={prompt}
+									type='button'
+									className='suggested-prompt'
+									onClick={() => setInput(prompt)}
+								>
+									{prompt}
+								</button>
+							))}
+						</div>
 					</div>
 				)}
 				{messages.map(m => {
@@ -728,7 +951,22 @@ const ChatPanel: React.FC<Props> = (props) => {
 							'tool-activity',
 							m.isWrite ? '-write' : '',
 							m.isError ? '-error' : '',
+							m.noteId ? '-clickable' : '',
 						].filter(Boolean).join(' ');
+						const noteId = m.noteId || noteIdFromToolText(m.text);
+						if (noteId) {
+							return (
+								<button
+									key={m.id}
+									type='button'
+									className={className}
+									onClick={() => { void handleOpenNote(noteId); }}
+									title={_('Open note')}
+								>
+									{m.text}
+								</button>
+							);
+						}
 						return <div key={m.id} className={className}>{m.text}</div>;
 					}
 					const summary = m.role === 'assistant' ? editsSummary(m.editsApplied ?? 0, m.editsMissed ?? 0) : '';
@@ -742,6 +980,31 @@ const ChatPanel: React.FC<Props> = (props) => {
 										: <span>{summary}</span>}
 								</div>
 							)}
+							{m.role === 'assistant' && m.citations && m.citations.length > 0 && (
+								<div className='citation-chips' aria-label={_('Sources')}>
+									{m.citations.map(c => (
+										<button
+											key={`${m.id}-${c.noteId}`}
+											type='button'
+											className='citation-chip'
+											onClick={() => { void handleOpenNote(c.noteId); }}
+											title={c.title}
+										>
+											{c.title}
+										</button>
+									))}
+								</div>
+							)}
+							{m.role === 'user' && !sending && [...messages].reverse().find(x => x.role === 'user')?.id === m.id && (
+								<button
+									type='button'
+									className='retry'
+									onClick={handleRetryLast}
+									title={_('Edit and retry')}
+								>
+									{_('Retry')}
+								</button>
+							)}
 						</div>
 					);
 				})}
@@ -751,6 +1014,14 @@ const ChatPanel: React.FC<Props> = (props) => {
 				<div ref={messagesEndRef} />
 			</div>
 			<div className='composer'>
+				<div className='composer-meta'>
+					<span className='context-meter' title={_('Rough prompt size estimate')}>
+						{_('~%d tokens', contextTokens)}
+					</span>
+					{props.agentMode && props.confirmWrites && (
+						<span className='confirm-writes-hint'>{_('Writes require confirm')}</span>
+					)}
+				</div>
 				{showDisclosure && (
 					<div className='disclosure'>
 						{_('Your note will be sent to the configured AI provider (%s).', props.providerType)}
@@ -851,6 +1122,7 @@ const mapStateToProps = (state: AppState, ownProps: OwnProps) => {
 		messages: windowState.aiChatMessages || [],
 		agentMode: !!state.settings['ai.chat.agentMode'],
 		includeRelatedNotes: !!state.settings['ai.chat.includeRelatedNotes'],
+		confirmWrites: !!state.settings['ai.chat.confirmWrites'],
 		enabledTools: (state.settings['ai.chat.enabledTools'] || {}) as Record<string, boolean>,
 	};
 };

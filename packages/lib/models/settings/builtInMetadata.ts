@@ -833,6 +833,20 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			storage: SettingStorage.File,
 		},
 
+		// When on, agent write tools (create/update/tags/notebook/daily) ask
+		// for confirmation in the chat panel before running.
+		'ai.chat.confirmWrites': {
+			value: false,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'ai',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['ai.enabled'] && !!settings['ai.chat.agentMode'],
+			label: () => _('Confirm before agent writes'),
+			description: () => _('When Agent mode is on, ask before create_note, update_note, manage_tags, create_notebook, or daily-note creation.'),
+			storage: SettingStorage.File,
+		},
+
 		// User toggle for the background embedding indexer. On by default —
 		// when AI is enabled, indexing is part of what AI does. The toggle
 		// exists as a kill switch for users who want chat without the
@@ -999,6 +1013,61 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			appTypes: [AppType.Desktop],
 			show: (settings) => !!settings['mcp.enabled'],
 			label: () => _('MCP: Allow semantic search of notes'),
+			storage: SettingStorage.File,
+		},
+
+		'mcp.tool.list_notes.enabled': {
+			value: true,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'mcp',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['mcp.enabled'],
+			label: () => _('MCP: Allow listing notes in a notebook'),
+			storage: SettingStorage.File,
+		},
+
+		'mcp.tool.open_note.enabled': {
+			value: true,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'mcp',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['mcp.enabled'],
+			label: () => _('MCP: Allow opening notes in the UI'),
+			storage: SettingStorage.File,
+		},
+
+		'mcp.tool.get_active_note.enabled': {
+			value: true,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'mcp',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['mcp.enabled'],
+			label: () => _('MCP: Allow reading the active note metadata'),
+			storage: SettingStorage.File,
+		},
+
+		'mcp.tool.get_vault_stats.enabled': {
+			value: true,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'mcp',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['mcp.enabled'],
+			label: () => _('MCP: Allow vault statistics'),
+			storage: SettingStorage.File,
+		},
+
+		'mcp.tool.get_or_create_daily_note.enabled': {
+			value: false,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'mcp',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['mcp.enabled'],
+			label: () => _('MCP: Allow get/create daily notes'),
 			storage: SettingStorage.File,
 		},
 

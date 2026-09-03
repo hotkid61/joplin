@@ -20,9 +20,17 @@ export interface AgentToolEvent {
 	summary: string;
 	isError?: boolean;
 	isWrite?: boolean;
+	noteId?: string;
+	noteTitle?: string;
 }
 
 export type AgentProgressCallback = (event: AgentToolEvent)=> void;
+
+export type AgentWriteConfirmCallback = (info: {
+	toolName: string;
+	summary: string;
+	arguments: Record<string, unknown>;
+})=> Promise<boolean>;
 
 interface WriteSuccess {
 	toolName: string;
@@ -94,6 +102,8 @@ export const toolActivitySummary = (
 			return `Reading note ${String(args.id ?? '').slice(0, 12)}…`;
 		case 'list_notebooks':
 			return 'Listing notebooks…';
+		case 'list_notes':
+			return 'Listing notes…';
 		case 'list_tags':
 			return 'Listing tags…';
 		case 'create_note': {
@@ -103,6 +113,21 @@ export const toolActivitySummary = (
 		}
 		case 'update_note':
 			return `Updating note ${String(args.id ?? '').slice(0, 12)}…`;
+		case 'manage_tags':
+			return `Updating tags on note ${String(args.note_id ?? '').slice(0, 12)}…`;
+		case 'create_notebook': {
+			const title = String(args.title ?? '').trim();
+			const clipped = clipTitle(title);
+			return clipped ? `Creating notebook "${clipped}"…` : 'Creating notebook…';
+		}
+		case 'open_note':
+			return `Opening note ${String(args.id ?? '').slice(0, 12)}…`;
+		case 'get_active_note':
+			return 'Reading active note…';
+		case 'get_vault_stats':
+			return 'Gathering vault stats…';
+		case 'get_or_create_daily_note':
+			return 'Resolving daily note…';
 		default:
 			return `Running ${toolName}…`;
 		}
@@ -112,10 +137,18 @@ export const toolActivitySummary = (
 	case 'search_notes':
 	case 'semantic_search_notes':
 		return 'Search finished';
-	case 'read_note':
+	case 'read_note': {
+		const fields = parseToolResultFields(resultText || '');
+		const title = clipTitle(fields.title);
+		const id = fields.id || String(args.id ?? '');
+		if (title && id) return `Read note: ${title} (id ${id})`;
+		if (id) return `Read note (id ${id})`;
 		return 'Finished reading note';
+	}
 	case 'list_notebooks':
 		return 'Listed notebooks';
+	case 'list_notes':
+		return 'Listed notes';
 	case 'list_tags':
 		return 'Listed tags';
 	case 'create_note': {
@@ -131,10 +164,40 @@ export const toolActivitySummary = (
 	case 'update_note': {
 		const fields = parseToolResultFields(resultText || '');
 		const title = clipTitle(fields.title);
-		const id = (fields.id || String(args.id ?? '')).slice(0, 12);
+		const id = (fields.id || String(args.id ?? '')).slice(0, 32);
 		if (title && id) return `Updated note: ${title} (id ${id})`;
 		if (title) return `Updated note: ${title}`;
 		return id ? `Updated note ${id}` : 'Updated note';
+	}
+	case 'manage_tags': {
+		const id = String(args.note_id ?? '');
+		return id ? `Updated tags on note ${id}` : 'Updated tags';
+	}
+	case 'create_notebook': {
+		const fields = parseToolResultFields(resultText || '');
+		const title = clipTitle(fields.title || String(args.title ?? ''));
+		return title ? `Created notebook: ${title}` : 'Created notebook';
+	}
+	case 'open_note': {
+		const fields = parseToolResultFields(resultText || '');
+		const title = clipTitle(fields.title);
+		const id = fields.id || String(args.id ?? '');
+		if (title && id) return `Opened note: ${title} (id ${id})`;
+		return id ? `Opened note ${id}` : 'Opened note';
+	}
+	case 'get_active_note': {
+		const fields = parseToolResultFields(resultText || '');
+		const title = clipTitle(fields.title);
+		return title ? `Active note: ${title}` : 'Got active note';
+	}
+	case 'get_vault_stats':
+		return 'Vault stats ready';
+	case 'get_or_create_daily_note': {
+		const fields = parseToolResultFields(resultText || '');
+		const title = clipTitle(fields.title);
+		const id = fields.id;
+		if (title && id) return `Daily note: ${title} (id ${id})`;
+		return title ? `Daily note: ${title}` : 'Daily note ready';
 	}
 	default:
 		return `${toolName} finished`;
@@ -224,7 +287,8 @@ const agentSystemPrompt = (note: NoteContext) => {
 		'You are an agent inside Booz Allen Notes (Joplin). You can search the vault, read notes, and create or update notes using tools.',
 		'',
 		'Use tools when you need information outside the current note, or when the user asks you to change another note.',
-		'Prefer search_notes / read_note over guessing. Prefer update_note append or replace_text over rewriting an entire body.',
+		'Prefer search_notes / read_note / list_notes over guessing. Prefer update_note append or replace_text over rewriting an entire body.',
+		'Use open_note to show a note in the UI. Use get_or_create_daily_note for daily notes. Use get_vault_stats for an overview.',
 		'When calling create_note, keep the body concise (about one to two pages / under ~2000 words). Prefer a clear outline over a very long dump — long tool arguments often time out on local models.',
 		'Never delete notes. There is no delete tool.',
 		'',
@@ -281,6 +345,7 @@ export const runNoteChatAgent = async (
 	userMessage: string,
 	onProgress?: AgentProgressCallback,
 	signal?: AbortSignal,
+	confirmWrite?: AgentWriteConfirmCallback,
 ): Promise<ChatReply> => {
 	throwIfAiAborted(signal);
 	const tools = buildAgentToolDefinitions();
@@ -388,23 +453,53 @@ export const runNoteChatAgent = async (
 					isWrite,
 				});
 
+				if (isWrite && confirmWrite) {
+					const approved = await confirmWrite({
+						toolName: call.name,
+						summary: startSummary,
+						arguments: call.arguments ?? {},
+					});
+					if (!approved) {
+						const deniedText = `Write cancelled by user: ${call.name}`;
+						onProgress?.({
+							phase: 'end',
+							toolName: call.name,
+							summary: deniedText,
+							isError: true,
+							isWrite: true,
+						});
+						messages.push({
+							role: 'tool',
+							toolCallId: call.id,
+							content: deniedText,
+						});
+						continue;
+					}
+				}
+
 				const invoked = await invokeAgentTool(call);
 				throwIfAiAborted(signal);
 				const endSummary = toolActivitySummary(call.name, call.arguments, 'end', !invoked.ok, invoked.text);
+				const resultFields = parseToolResultFields(invoked.ok ? invoked.text : '');
+				const noteId = resultFields.id
+					|| String(call.arguments?.id ?? call.arguments?.note_id ?? '').trim()
+					|| undefined;
+				const noteTitle = resultFields.title || undefined;
 				onProgress?.({
 					phase: 'end',
 					toolName: call.name,
 					summary: endSummary,
 					isError: !invoked.ok,
 					isWrite,
+					noteId,
+					noteTitle,
 				});
 
 				if (invoked.ok && isWrite) {
-					const fields = parseToolResultFields(invoked.text);
 					writeSuccesses.push({
 						toolName: call.name,
-						title: fields.title || String(call.arguments?.title ?? '').trim(),
-						id: fields.id || String(call.arguments?.id ?? '').trim(),
+						title: resultFields.title || String(call.arguments?.title ?? '').trim(),
+						id: resultFields.id || String(call.arguments?.id ?? call.arguments?.note_id ?? '').trim(),
 					});
 				}
 

@@ -543,6 +543,216 @@
 	opacity: 0.9;
 }
 
+.chat-panel > .header > .header-actions > .threads-toolbar {
+	position: relative;
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-toggle {
+	background: none;
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	color: var(--joplin-color-faded);
+	cursor: pointer;
+	font-size: 0.75em;
+	font-weight: 600;
+	padding: 1px 6px;
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-toggle:hover {
+	color: var(--joplin-color);
+	border-color: var(--joplin-color-faded);
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	z-index: 22;
+	min-width: 240px;
+	max-width: 320px;
+	max-height: 360px;
+	overflow: auto;
+	padding: 8px;
+	background-color: var(--joplin-background-color);
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 4px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+	font-weight: 400;
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu > .threads-menu-title {
+	font-size: 0.8em;
+	font-weight: 600;
+	margin-bottom: 6px;
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu > .threads-menu-hint {
+	font-size: 0.75em;
+	color: var(--joplin-color-faded);
+	line-height: 1.4;
+	margin-bottom: 8px;
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu > .threads-menu-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu > .threads-menu-list > li > .threads-menu-item {
+	display: block;
+	width: 100%;
+	text-align: left;
+	background: none;
+	border: none;
+	border-radius: 3px;
+	color: var(--joplin-color);
+	cursor: pointer;
+	font-size: 0.85em;
+	padding: 5px 6px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu > .threads-menu-list > li > .threads-menu-item:hover {
+	background-color: var(--joplin-background-color-hover3);
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu > .threads-menu-list > li > .threads-menu-item.-active {
+	font-weight: 600;
+	background-color: var(--joplin-background-color3);
+}
+
+.chat-panel > .header > .header-actions > .threads-toolbar > .threads-menu > .threads-new {
+	margin-top: 8px;
+	width: 100%;
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	background: none;
+	color: var(--joplin-color);
+	cursor: pointer;
+	font-size: 0.8em;
+	font-weight: 600;
+	padding: 5px 6px;
+}
+
+.chat-panel > .header > .header-actions > .model-toolbar > .model-menu > .model-preset-row {
+	display: flex;
+	gap: 6px;
+	margin: 8px 0;
+}
+
+.chat-panel > .header > .header-actions > .model-toolbar > .model-menu > .model-preset-row > .model-preset {
+	flex: 1;
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	background: none;
+	color: var(--joplin-color-faded);
+	cursor: pointer;
+	font-size: 0.8em;
+	font-weight: 600;
+	padding: 4px 6px;
+}
+
+.chat-panel > .header > .header-actions > .model-toolbar > .model-menu > .model-preset-row > .model-preset.-active {
+	color: var(--joplin-color);
+	border-color: var(--joplin-color-faded);
+	background-color: var(--joplin-background-color3);
+}
+
+.chat-panel > .messages > .empty > .empty-hint {
+	margin-bottom: 12px;
+}
+
+.chat-panel > .messages > .empty > .suggested-prompts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	justify-content: center;
+}
+
+.chat-panel > .messages > .empty > .suggested-prompts > .suggested-prompt {
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	background: none;
+	color: var(--joplin-color);
+	cursor: pointer;
+	font-size: 0.8em;
+	padding: 4px 8px;
+	text-align: left;
+}
+
+.chat-panel > .messages > .empty > .suggested-prompts > .suggested-prompt:hover {
+	background-color: var(--joplin-background-color-hover3);
+}
+
+.chat-panel > .messages > .tool-activity.-clickable {
+	cursor: pointer;
+	text-align: left;
+	width: 100%;
+	background: none;
+	border-top: none;
+	border-right: none;
+	border-bottom: none;
+	font: inherit;
+}
+
+.chat-panel > .messages > .tool-activity.-clickable:hover {
+	color: var(--joplin-color);
+	background-color: var(--joplin-background-color-hover3);
+}
+
+.chat-panel > .messages > .turn > .citation-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 6px;
+}
+
+.chat-panel > .messages > .turn > .citation-chips > .citation-chip {
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	background: none;
+	color: var(--joplin-color-faded);
+	cursor: pointer;
+	font-size: 0.75em;
+	padding: 1px 6px;
+	max-width: 160px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-panel > .messages > .turn > .citation-chips > .citation-chip:hover {
+	color: var(--joplin-color);
+	border-color: var(--joplin-color-faded);
+}
+
+.chat-panel > .messages > .turn > .retry {
+	margin-top: 6px;
+	background: none;
+	border: none;
+	color: var(--joplin-color-faded);
+	cursor: pointer;
+	font-size: 0.75em;
+	padding: 0;
+	text-decoration: underline;
+}
+
+.chat-panel > .composer > .composer-meta {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	padding: 0 2px 4px;
+	font-size: 0.7em;
+	color: var(--joplin-color-faded);
+}
+
 .chat-panel > .disabled-message {
 	flex: 1;
 	display: flex;

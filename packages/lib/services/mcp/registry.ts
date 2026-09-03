@@ -5,12 +5,17 @@ import searchNotes from './tools/searchNotes';
 import semanticSearchNotes from './tools/semanticSearchNotes';
 import readNote from './tools/readNote';
 import listNotebooks from './tools/listNotebooks';
+import listNotes from './tools/listNotes';
 import listTags from './tools/listTags';
 import createNote from './tools/createNote';
 import updateNote from './tools/updateNote';
 import deleteNote from './tools/deleteNote';
 import manageTags from './tools/manageTags';
 import createNotebook from './tools/createNotebook';
+import openNote from './tools/openNote';
+import getActiveNote from './tools/getActiveNote';
+import getVaultStats from './tools/getVaultStats';
+import getOrCreateDailyNote from './tools/getOrCreateDailyNote';
 
 // Every tool registered here gets an `mcp.tool.<id>.enabled` setting (see
 // builtInMetadata.ts). Adding a tool to this list without also adding the
@@ -20,12 +25,17 @@ const allMcpTools: McpTool[] = [
 	semanticSearchNotes,
 	readNote,
 	listNotebooks,
+	listNotes,
 	listTags,
 	createNote,
 	updateNote,
 	deleteNote,
 	manageTags,
 	createNotebook,
+	openNote,
+	getActiveNote,
+	getVaultStats,
+	getOrCreateDailyNote,
 ];
 
 export const allTools = () => allMcpTools;
@@ -49,12 +59,25 @@ export const agentWorkspaceToolIds = [
 	'semantic_search_notes',
 	'read_note',
 	'list_notebooks',
+	'list_notes',
 	'list_tags',
 	'create_note',
 	'update_note',
+	'manage_tags',
+	'create_notebook',
+	'open_note',
+	'get_active_note',
+	'get_vault_stats',
+	'get_or_create_daily_note',
 ] as const;
 
-export const agentWriteToolIds = new Set(['create_note', 'update_note']);
+export const agentWriteToolIds = new Set([
+	'create_note',
+	'update_note',
+	'manage_tags',
+	'create_notebook',
+	'get_or_create_daily_note',
+]);
 
 // Per-tool on/off for in-app agent mode (`ai.chat.enabledTools`). Missing keys
 // default to enabled so existing installs keep all agent tools after upgrade.

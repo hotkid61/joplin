@@ -14,12 +14,17 @@ Joplin exposes a small, fixed set of tools. Each can be turned on or off individ
 | Semantic search | Search by meaning, using the [local embeddings index](https://github.com/laurent22/joplin/blob/dev/readme/apps/ai_semantic_search.md). | On |
 | Read note | Return one note (title, markdown body, notebook, tags). | On |
 | List notebooks | List notebooks with their hierarchy. | On |
+| List notes | List notes inside a notebook. | On |
 | List tags | List tags. | On |
+| Get active note | Metadata for the note currently selected in the UI. | On |
+| Vault stats | Counts of notebooks, notes, tags, and open todos. | On |
+| Open note | Open a note in the Joplin UI. | On |
 | Create note | Create a new note in a chosen notebook. | **Off** |
 | Update note | Change the title, body, notebook, or to-do state of an existing note. | **Off** |
 | Trash note | Move a note to the trash. | **Off** |
 | Edit tags on a note | Add or remove tags by title. | **Off** |
 | Create notebook | Create a new notebook, optionally inside an existing one. | **Off** |
+| Daily note | Get or create a dated daily note. | **Off** |
 
 The "write" tools default to off so you have to deliberately let an AI app modify your data.
 
