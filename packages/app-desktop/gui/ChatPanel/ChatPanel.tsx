@@ -25,6 +25,8 @@ interface Props {
 	noteTitle: string;
 	noteIsEncrypted: boolean;
 	messages: AiChatMessage[];
+	agentMode: boolean;
+	includeRelatedNotes: boolean;
 	dispatch: Dispatch;
 }
 
@@ -39,12 +41,29 @@ const editsSummary = (applied: number, missed: number) => {
 	return _('%d edit(s) applied, %d could not be placed automatically.', applied, missed);
 };
 
+const emptyHint = (agentMode: boolean, includeRelatedNotes: boolean) => {
+	if (agentMode) {
+		return _('Agent mode is on: the assistant can search your vault and create or update notes. Ask it to find something and change another note.');
+	}
+	if (includeRelatedNotes) {
+		return _('Ask about this note or related notes in your vault. Select text in the editor first to scope edits to that selection.');
+	}
+	return _('Ask about this note, or request changes. Select text in the editor first to scope the request to that selection.');
+};
+
+const placeholderHint = (agentMode: boolean, includeRelatedNotes: boolean) => {
+	if (agentMode) return _('Ask the agent to search or edit notes…');
+	if (includeRelatedNotes) return _('Ask about this note or your vault…');
+	return _('Ask about this note, or request a change…');
+};
+
 // Single-window for v1: mapStateToProps hard-codes defaultWindowId and the
 // toggle writes to the app-wide layout. A second window would mirror the main.
 const ChatPanel: React.FC<Props> = (props) => {
 	const { dispatch, messages } = props;
 	const [input, setInput] = useState('');
 	const [sending, setSending] = useState(false);
+	const [statusText, setStatusText] = useState('');
 	const [disclosureShown, setDisclosureShown] = useState<boolean>(() => {
 		try {
 			return !!Setting.value(disclosureSetting);
@@ -87,9 +106,9 @@ const ChatPanel: React.FC<Props> = (props) => {
 	}, [props.noteId, props.noteTitle, appendMessage]);
 
 	useEffect(() => {
-		if (messages.length === 0) return;
+		if (messages.length === 0 && !statusText) return;
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [messages]);
+	}, [messages, statusText]);
 
 	const conversationTurns = useMemo<ChatTurn[]>(() => {
 		return messages
@@ -112,6 +131,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 		const startGeneration = generationRef.current;
 		const noteIdAtStart = props.noteId;
 		setSending(true);
+		setStatusText(props.agentMode ? _('Agent thinking…') : '');
 		setInput('');
 
 		// Captured so we can roll it back on failure — otherwise a retry would
@@ -135,7 +155,19 @@ const ChatPanel: React.FC<Props> = (props) => {
 				body: note.body || '',
 				selection: selection || null,
 				noteId: props.noteId,
-			}, conversationTurns, text);
+			}, conversationTurns, text, (event) => {
+				if (generationRef.current !== startGeneration) return;
+				setStatusText(event.summary);
+				if (event.phase === 'end') {
+					appendMessage({
+						id: makeId(),
+						role: 'tool',
+						text: event.summary,
+						isWrite: event.isWrite,
+						isError: event.isError,
+					});
+				}
+			});
 
 			if (generationRef.current !== startGeneration) return;
 
@@ -213,8 +245,9 @@ const ChatPanel: React.FC<Props> = (props) => {
 			appendMessage({ id: makeId(), role: 'error', text: error.message || _('Something went wrong.') });
 		} finally {
 			setSending(false);
+			setStatusText('');
 		}
-	}, [input, sending, props.noteId, conversationTurns, windowId, appendMessage, dispatch]);
+	}, [input, sending, props.noteId, props.agentMode, conversationTurns, windowId, appendMessage, dispatch]);
 
 	const handleAcknowledgeDisclosure = useCallback(() => {
 		Setting.setValue(disclosureSetting, true);
@@ -223,6 +256,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 
 	const handleReset = useCallback(() => {
 		generationRef.current++;
+		setStatusText('');
 		dispatch({ type: 'AI_CHAT_RESET', windowId: windowId });
 	}, [dispatch, windowId]);
 
@@ -265,6 +299,9 @@ const ChatPanel: React.FC<Props> = (props) => {
 		<div className='chat-panel'>
 			<div className='header'>
 				<span className='title'>{_('AI Chat')}</span>
+				{props.agentMode && (
+					<span className='agent-badge' title={_('Agent can search and edit notes')}>{_('Agent')}</span>
+				)}
 				{messages.length > 0 && (
 					<button type='button' className='reset' onClick={handleReset}>{_('Reset')}</button>
 				)}
@@ -272,9 +309,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 			<div className='messages'>
 				{messages.length === 0 && (
 					<div className='empty'>
-						{Setting.value('ai.chat.includeRelatedNotes')
-							? _('Ask about this note or related notes in your vault. Select text in the editor first to scope edits to that selection.')
-							: _('Ask about this note, or request changes. Select text in the editor first to scope the request to that selection.')}
+						{emptyHint(props.agentMode, props.includeRelatedNotes)}
 					</div>
 				)}
 				{messages.map(m => {
@@ -283,6 +318,14 @@ const ChatPanel: React.FC<Props> = (props) => {
 					}
 					if (m.role === 'error') {
 						return <div key={m.id} className='error'>{m.text}</div>;
+					}
+					if (m.role === 'tool') {
+						const className = [
+							'tool-activity',
+							m.isWrite ? '-write' : '',
+							m.isError ? '-error' : '',
+						].filter(Boolean).join(' ');
+						return <div key={m.id} className={className}>{m.text}</div>;
 					}
 					const summary = m.role === 'assistant' ? editsSummary(m.editsApplied ?? 0, m.editsMissed ?? 0) : '';
 					return (
@@ -298,6 +341,9 @@ const ChatPanel: React.FC<Props> = (props) => {
 						</div>
 					);
 				})}
+				{statusText && (
+					<div className='tool-activity -pending'>{statusText}</div>
+				)}
 				<div ref={messagesEndRef} />
 			</div>
 			<div className='composer'>
@@ -314,9 +360,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
 						onKeyDown={handleKeyDown}
-						placeholder={Setting.value('ai.chat.includeRelatedNotes')
-							? _('Ask about this note or your vault…')
-							: _('Ask about this note, or request a change…')}
+						placeholder={placeholderHint(props.agentMode, props.includeRelatedNotes)}
 						aria-label={_('Chat message')}
 					/>
 					<button
@@ -353,6 +397,8 @@ const mapStateToProps = (state: AppState, ownProps: OwnProps) => {
 		noteTitle: note?.title || '',
 		noteIsEncrypted: !!note?.encryption_applied,
 		messages: windowState.aiChatMessages || [],
+		agentMode: !!state.settings['ai.chat.agentMode'],
+		includeRelatedNotes: !!state.settings['ai.chat.includeRelatedNotes'],
 	};
 };
 

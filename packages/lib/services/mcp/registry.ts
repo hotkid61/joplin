@@ -40,3 +40,27 @@ export const findTool = (id: string) => {
 	if (!(Setting.value(`mcp.tool.${t.id}.enabled`) as boolean)) return null;
 	return t;
 };
+
+// In-app AI Chat agent allowlist. Same handlers as MCP, but independent of
+// `mcp.enabled` / per-tool MCP toggles — agent mode has its own setting.
+// delete_note is intentionally excluded.
+export const agentWorkspaceToolIds = [
+	'search_notes',
+	'semantic_search_notes',
+	'read_note',
+	'list_notebooks',
+	'list_tags',
+	'create_note',
+	'update_note',
+] as const;
+
+export const agentWriteToolIds = new Set(['create_note', 'update_note']);
+
+export const agentWorkspaceTools = () => {
+	const allowed = new Set<string>(agentWorkspaceToolIds);
+	return allMcpTools.filter(t => allowed.has(t.id));
+};
+
+export const findAgentTool = (id: string) => {
+	return agentWorkspaceTools().find(t => t.id === id) ?? null;
+};

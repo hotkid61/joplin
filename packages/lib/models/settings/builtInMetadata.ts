@@ -806,6 +806,23 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			storage: SettingStorage.File,
 		},
 
+		// Opt-in tool-using agent: the sidebar can call the same workspace
+		// handlers as MCP (search/read/list/create/update). Off by default —
+		// enabling it allows the model to write to notes across the vault.
+		// delete_note is never exposed. Best with OpenAI-compatible local
+		// endpoints that support function calling (e.g. LM Studio).
+		'ai.chat.agentMode': {
+			value: false,
+			type: SettingItemType.Bool,
+			public: true,
+			section: 'ai',
+			appTypes: [AppType.Desktop],
+			show: (settings) => !!settings['ai.enabled'],
+			label: () => _('Agent: can search and edit notes'),
+			description: () => _('When enabled, AI Chat may search the vault and create or update notes via tools. Tool activity appears in the chat. Deleting notes is not allowed. Requires a model that supports tool/function calling (OpenAI-compatible / LM Studio).'),
+			storage: SettingStorage.File,
+		},
+
 		// User toggle for the background embedding indexer. On by default —
 		// when AI is enabled, indexing is part of what AI does. The toggle
 		// exists as a kill switch for users who want chat without the
@@ -2134,6 +2151,7 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 
 		'welcome.wasBuilt': { value: false, type: SettingItemType.Bool, public: false },
 		'welcome.enabled': { value: true, type: SettingItemType.Bool, public: false },
+		'demo.wasBuilt': { value: false, type: SettingItemType.Bool, public: false },
 
 		'camera.type': { value: CameraDirection.Back, type: SettingItemType.Int, public: false, appTypes: [AppType.Mobile] },
 		'camera.ratio': { value: '4:3', type: SettingItemType.String, public: false, appTypes: [AppType.Mobile] },

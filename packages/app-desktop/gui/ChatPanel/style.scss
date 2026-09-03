@@ -23,6 +23,18 @@
 	flex: 1;
 }
 
+.chat-panel > .header > .agent-badge {
+	font-size: 0.75em;
+	font-weight: 600;
+	color: var(--joplin-color-faded);
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	padding: 1px 6px;
+	margin-right: 8px;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
 .chat-panel > .header > .reset {
 	background: none;
 	border: none;
@@ -95,6 +107,28 @@
 	color: var(--joplin-color-faded);
 	font-size: 0.8em;
 	margin: 6px 0;
+}
+
+.chat-panel > .messages > .tool-activity {
+	align-self: stretch;
+	font-size: 0.85em;
+	color: var(--joplin-color-faded);
+	padding: 4px 8px;
+	border-left: 2px solid var(--joplin-divider-color);
+	font-style: italic;
+}
+
+.chat-panel > .messages > .tool-activity.-write {
+	border-left-color: var(--joplin-color-correct);
+}
+
+.chat-panel > .messages > .tool-activity.-error {
+	color: var(--joplin-color-warn);
+	border-left-color: var(--joplin-color-warn);
+}
+
+.chat-panel > .messages > .tool-activity.-pending {
+	opacity: 0.85;
 }
 
 .chat-panel > .messages > .error {

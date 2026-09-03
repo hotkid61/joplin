@@ -3,8 +3,10 @@ import { ChatMessage } from './types';
 import JoplinError from '../../JoplinError';
 import Logger from '@joplin/utils/Logger';
 import JSON5 from 'json5';
+import Setting from '../../models/Setting';
 import findFencedBlock from './utils/findFencedBlock';
 import { fetchRelatedNoteExcerpts, RelatedNoteExcerpt } from './relatedNotesContext';
+import { AgentProgressCallback, runNoteChatAgent } from './noteChatAgent';
 
 const logger = Logger.create('noteChat');
 
@@ -267,6 +269,7 @@ export const runNoteChat = async (
 	note: NoteContext,
 	history: ChatTurn[],
 	userMessage: string,
+	onProgress?: AgentProgressCallback,
 ): Promise<ChatReply> => {
 	const relatedNotes = note.relatedNotes
 		?? await fetchRelatedNoteExcerpts(userMessage, note.noteId);
@@ -276,6 +279,11 @@ export const runNoteChat = async (
 
 	if (relatedNotes.length) {
 		logger.info(`Including ${relatedNotes.length} related note excerpt(s) in chat context`);
+	}
+
+	if (Setting.value('ai.chat.agentMode')) {
+		logger.info('Running AI Chat in agent mode (workspace tools enabled)');
+		return runNoteChatAgent(noteWithContext, history, userMessage, onProgress);
 	}
 
 	const messages: ChatMessage[] = [

@@ -10,10 +10,12 @@ const logger = Logger.create('app.reducer');
 
 export interface AiChatMessage {
 	id: string;
-	role: 'user' | 'assistant' | 'error' | 'separator';
+	role: 'user' | 'assistant' | 'error' | 'separator' | 'tool';
 	text: string;
 	editsApplied?: number;
 	editsMissed?: number;
+	isWrite?: boolean;
+	isError?: boolean;
 }
 
 export interface AppStateRoute {

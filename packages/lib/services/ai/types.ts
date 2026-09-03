@@ -1,8 +1,19 @@
-export type ChatRole = 'system' | 'user' | 'assistant';
+export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface ToolCallRequest {
+	id: string;
+	name: string;
+	arguments: Record<string, unknown>;
+	// Original JSON string from the provider — kept so we can round-trip
+	// tool_calls back in follow-up messages without re-serialising.
+	rawArguments?: string;
+}
 
 export interface ChatMessage {
 	role: ChatRole;
 	content: string;
+	toolCalls?: ToolCallRequest[];
+	toolCallId?: string;
 }
 
 export interface ResponseFormat {
@@ -14,10 +25,19 @@ export interface ResponseFormat {
 	};
 }
 
+// OpenAI-compatible function-tool shape. MCP tools map onto this via
+// name/description/parameters ← id/description/inputSchema.
+export interface ChatToolDefinition {
+	name: string;
+	description: string;
+	parameters: Record<string, unknown>;
+}
+
 export interface ChatOptions {
 	temperature?: number;
 	responseFormat?: ResponseFormat;
 	maxTokens?: number;
+	tools?: ChatToolDefinition[];
 }
 
 export interface ChatUsage {
@@ -25,9 +45,13 @@ export interface ChatUsage {
 	outputTokens: number;
 }
 
+export type ChatStopReason = 'stop' | 'tool_use' | 'length';
+
 export interface ChatResult {
 	text: string;
 	usage: ChatUsage;
+	stopReason?: ChatStopReason;
+	toolCalls?: ToolCallRequest[];
 }
 
 export type ProviderClassification = 'local' | 'remote';
