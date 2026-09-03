@@ -189,6 +189,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const [contextTokens, setContextTokens] = useState(0);
 	const [modelOptions, setModelOptions] = useState<string[]>([]);
 	const [modelsLoading, setModelsLoading] = useState(false);
+	const [modelsError, setModelsError] = useState('');
 	const [modelCustom, setModelCustom] = useState('');
 	const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
 	const [disclosureShown, setDisclosureShown] = useState<boolean>(() => {
@@ -211,6 +212,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const threadsMenuRef = useRef<HTMLDivElement>(null);
 	const transcriptNoteIdRef = useRef<string | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
+	const modelsAbortRef = useRef<AbortController | null>(null);
 
 	// Bumped on Reset / Stop / unmount so an in-flight reply can detect it should
 	// abort instead of landing in a cleared or destroyed conversation.
@@ -218,6 +220,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	useEffect(() => () => {
 		generationRef.current++;
 		abortControllerRef.current?.abort();
+		modelsAbortRef.current?.abort();
 	}, []);
 
 	const windowId = useContext(WindowIdContext);
@@ -275,20 +278,48 @@ const ChatPanel: React.FC<Props> = (props) => {
 	}, [toolsMenuOpen, modelMenuOpen, threadsMenuOpen]);
 
 	useEffect(() => {
-		if (!modelMenuOpen) return undefined;
+		if (!modelMenuOpen) {
+			modelsAbortRef.current?.abort();
+			modelsAbortRef.current = null;
+			setModelsLoading(false);
+			return undefined;
+		}
+		// Separate from chat abortControllerRef — Stop must not leave model
+		// listing pending, and model listing must not wait on a hung agent turn.
+		const controller = new AbortController();
+		modelsAbortRef.current?.abort();
+		modelsAbortRef.current = controller;
 		let cancelled = false;
 		const load = async () => {
 			setModelsLoading(true);
-			const models = await listChatModels();
-			if (cancelled) return;
-			const current = (props.chatModel || '').trim();
-			const merged = current && !models.includes(current) ? [current, ...models] : models;
-			setModelOptions(merged);
-			setModelsLoading(false);
+			setModelsError('');
+			try {
+				const result = await listChatModels(controller.signal);
+				if (cancelled || controller.signal.aborted) return;
+				const models = result.models || [];
+				const current = (props.chatModel || '').trim();
+				const merged = current && !models.includes(current) ? [current, ...models] : models;
+				setModelOptions(merged);
+				setModelsError(result.error || '');
+			} catch (error) {
+				if (cancelled || controller.signal.aborted) return;
+				setModelOptions([]);
+				setModelsError(error instanceof Error ? error.message : String(error));
+			} finally {
+				if (!cancelled && !controller.signal.aborted) {
+					setModelsLoading(false);
+				}
+			}
 		};
 		void load();
-		return () => { cancelled = true; };
-	}, [modelMenuOpen, props.chatModel, props.chatBaseUrl, props.providerType]);
+		return () => {
+			cancelled = true;
+			controller.abort();
+			if (modelsAbortRef.current === controller) {
+				modelsAbortRef.current = null;
+			}
+		};
+	}, [modelMenuOpen, props.chatBaseUrl, props.providerType, props.chatModel]);
 
 	const conversationTurns = useMemo<ChatTurn[]>(() => {
 		return messages
@@ -828,9 +859,14 @@ const ChatPanel: React.FC<Props> = (props) => {
 									</ul>
 								) : (
 									<div className='model-menu-hint'>
-										{_('Could not list models from the endpoint. Enter a model id below, or set it in Settings → AI.')}
+										{modelsError
+											? _('Could not list models (%s). Enter a model id below, or set it in Settings → AI.', modelsError)
+											: _('Could not list models from the endpoint. Enter a model id below, or set it in Settings → AI.')}
 									</div>
 								)}
+								{!modelsLoading && modelsError && modelOptions.length > 0 ? (
+									<div className='model-menu-hint'>{modelsError}</div>
+								) : null}
 								<div className='model-preset-row'>
 									<button
 										type='button'

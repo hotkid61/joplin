@@ -539,7 +539,15 @@ function shimInit(options: ShimInitOptions = null) {
 			throw new Error(`Not a valid URL: ${url}`);
 		}
 		const resolvedProxyUrl = resolveProxyUrl(proxySettings.proxyUrl);
-		options.agent = (resolvedProxyUrl && proxySettings.proxyEnabled) ? shim.proxyAgent(url, resolvedProxyUrl) : shim.httpAgent(url);
+		if (options.independentConnection) {
+			// Bypass the shared maxSockets:1 keep-alive pool so short requests
+			// (model listing, etc.) never queue behind a hung chat completion.
+			options.agent = url.startsWith('https:')
+				? new https.Agent({ keepAlive: false, maxSockets: 8 })
+				: new http.Agent({ keepAlive: false, maxSockets: 8 });
+		} else {
+			options.agent = (resolvedProxyUrl && proxySettings.proxyEnabled) ? shim.proxyAgent(url, resolvedProxyUrl) : shim.httpAgent(url);
+		}
 		return shim.fetchWithRetry(() => {
 			return nodeFetch(url, options);
 		}, options);

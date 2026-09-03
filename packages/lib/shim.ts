@@ -44,6 +44,10 @@ export interface FetchOptions {
 	maxRetry?: number;
 	// Abort in-flight HTTP (e.g. Stop in AI Chat). node-fetch 2 supports this.
 	signal?: AbortSignal;
+	// Use a dedicated HTTP agent instead of the shared maxSockets:1 pool.
+	// Needed for short requests (e.g. AI model listing) that must not queue
+	// behind a long-lived chat/agent completion to the same host.
+	independentConnection?: boolean;
 }
 
 interface AttachFileToNoteOptions {

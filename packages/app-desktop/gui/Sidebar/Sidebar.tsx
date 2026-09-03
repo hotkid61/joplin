@@ -107,21 +107,27 @@ const SidebarComponent = (props: Props) => {
 					level={ButtonLevel.SidebarSecondary}
 					className="chrome-button"
 					iconName="fas fa-cog"
+					title={_('Settings')}
 					tooltip={CommandService.instance().label('config')}
+					fontSize={11}
 					onClick={() => runCommand('config')}
 				/>
 				<Button
 					level={ButtonLevel.SidebarSecondary}
 					className="chrome-button"
 					iconName="fas fa-th-large"
+					title={_('Layout')}
 					tooltip={CommandService.instance().label('toggleLayoutMoveMode')}
+					fontSize={11}
 					onClick={() => runCommand('toggleLayoutMoveMode')}
 				/>
 				<Button
 					level={ButtonLevel.SidebarSecondary}
 					className="chrome-button"
 					iconName="fas fa-align-justify"
+					title={_('Note list')}
 					tooltip={CommandService.instance().label('toggleNoteList')}
+					fontSize={11}
 					onClick={() => runCommand('toggleNoteList')}
 				/>
 			</div>
