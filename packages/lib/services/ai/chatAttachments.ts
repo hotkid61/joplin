@@ -87,7 +87,7 @@ export const formatAttachmentsForPrompt = (attachments: ChatAttachmentExtracted[
 
 export const formatAttachmentDisplayLine = (fileNames: string[]) => {
 	if (!fileNames.length) return '';
-	return `📎 ${fileNames.join(', ')}`;
+	return `Attached: ${fileNames.join(', ')}`;
 };
 
 export const _internal = {

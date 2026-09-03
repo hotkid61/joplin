@@ -12,7 +12,7 @@ describe('chatAttachments', () => {
 	});
 
 	test('formatAttachmentDisplayLine lists file names', () => {
-		expect(formatAttachmentDisplayLine(['a.pdf', 'b.txt'])).toBe('📎 a.pdf, b.txt');
+		expect(formatAttachmentDisplayLine(['a.pdf', 'b.txt'])).toBe('Attached: a.pdf, b.txt');
 		expect(formatAttachmentDisplayLine([])).toBe('');
 	});
 
