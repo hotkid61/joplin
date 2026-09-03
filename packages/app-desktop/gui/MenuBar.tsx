@@ -523,7 +523,7 @@ function useMenu(props: Props) {
 					label: _('Options'),
 					accelerator: keymapService.getAccelerator('config'),
 					click: () => {
-						navigateTo('Config');
+						void CommandService.instance().execute('config');
 					},
 				},
 				separator(),
@@ -592,7 +592,7 @@ function useMenu(props: Props) {
 					visible: !!shim.isMac(),
 					accelerator: shim.isMac() && keymapService.getAccelerator('config'),
 					click: () => {
-						navigateTo('Config');
+						void CommandService.instance().execute('config');
 					},
 				}, {
 					label: _('Check for updates...'),

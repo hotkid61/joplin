@@ -5,6 +5,7 @@ import { UiType } from './gotoAnything';
 export const declaration: CommandDeclaration = {
 	name: 'commandPalette',
 	label: () => _('Command palette...'),
+	iconName: 'fas fa-terminal',
 };
 
 export const runtime = (): CommandRuntime => {

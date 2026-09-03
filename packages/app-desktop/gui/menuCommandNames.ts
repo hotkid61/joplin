@@ -92,5 +92,6 @@ export default function() {
 		'showNoteProperties',
 		'convertNoteToMarkdown',
 		'toggleEditors',
+		'config',
 	];
 }

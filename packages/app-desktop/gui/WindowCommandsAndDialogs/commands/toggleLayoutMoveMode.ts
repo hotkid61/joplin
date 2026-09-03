@@ -5,6 +5,7 @@ import { AppState } from '../../../app.reducer';
 export const declaration: CommandDeclaration = {
 	name: 'toggleLayoutMoveMode',
 	label: () => _('Change application layout'),
+	iconName: 'fas fa-th-large',
 };
 
 export const runtime = (): CommandRuntime => {

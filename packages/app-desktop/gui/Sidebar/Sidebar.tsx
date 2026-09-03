@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { StyledSyncReportText, StyledSyncReport, StyledSynchronizeButton, StyledRoot } from './styles';
-import { ButtonLevel } from '../Button/Button';
+import Button, { ButtonLevel } from '../Button/Button';
 import CommandService from '@joplin/lib/services/CommandService';
 import Synchronizer, { type ProgressReport } from '@joplin/lib/Synchronizer';
 import Setting from '@joplin/lib/models/Setting';
@@ -95,13 +95,46 @@ const SidebarComponent = (props: Props) => {
 		</button>
 	);
 
+	const runCommand = (name: string) => {
+		void CommandService.instance().execute(name);
+	};
+
+	const chromeToolbar = (
+		<div className="sidebar-chrome-toolbar" role="toolbar" aria-label={_('Application')}>
+			{syncButton}
+			<div className="actions">
+				<Button
+					level={ButtonLevel.SidebarSecondary}
+					className="chrome-button"
+					iconName="fas fa-cog"
+					tooltip={CommandService.instance().label('config')}
+					onClick={() => runCommand('config')}
+				/>
+				<Button
+					level={ButtonLevel.SidebarSecondary}
+					className="chrome-button"
+					iconName="fas fa-th-large"
+					tooltip={CommandService.instance().label('toggleLayoutMoveMode')}
+					onClick={() => runCommand('toggleLayoutMoveMode')}
+				/>
+				<Button
+					level={ButtonLevel.SidebarSecondary}
+					className="chrome-button"
+					iconName="fas fa-align-justify"
+					tooltip={CommandService.instance().label('toggleNoteList')}
+					onClick={() => runCommand('toggleNoteList')}
+				/>
+			</div>
+		</div>
+	);
+
 	return (
 		<StyledRoot className='sidebar _scrollbar2' role='navigation' aria-label={_('Sidebar')}>
 			<div style={{ flex: 1 }}><FolderAndTagList/></div>
 			<div style={{ flex: 0, padding: theme.mainPadding }}>
 				{syncReportToggle}
 				{syncReportComp}
-				{syncButton}
+				{chromeToolbar}
 			</div>
 		</StyledRoot>
 	);

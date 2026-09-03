@@ -107,6 +107,7 @@ export const StyledShareIcon = styled.i`
 
 export const StyledSynchronizeButton = styled(Button)`
 	width: 100%;
+	min-width: 0;
 `;
 
 export const StyledAddButton = styled(Button)`
