@@ -11,12 +11,12 @@ interface Input {
 
 const tool: McpTool = {
 	id: 'create_note',
-	description: 'Create a new note. Returns the created note id. If notebook_id is omitted, the note is created in the default notebook.',
+	description: 'Create a new note. Returns the created note id. If notebook_id is omitted, the note is created in the default notebook. Keep the body concise (roughly one to two pages / under ~2000 words) — prefer a clear outline the user can expand later over a very long dump in one tool call.',
 	inputSchema: {
 		type: 'object',
 		properties: {
 			title: { type: 'string', description: 'Note title.' },
-			body: { type: 'string', description: 'Note body in Markdown.' },
+			body: { type: 'string', description: 'Note body in Markdown. Prefer a concise brief or outline; avoid extremely long bodies in a single call.' },
 			notebook_id: { type: 'string', description: 'Optional notebook (folder) id. Use list_notebooks to find ids.' },
 			is_todo: { type: 'boolean', description: 'Set to true to create the note as a to-do.' },
 		},

@@ -56,9 +56,23 @@ export const agentWorkspaceToolIds = [
 
 export const agentWriteToolIds = new Set(['create_note', 'update_note']);
 
+// Per-tool on/off for in-app agent mode (`ai.chat.enabledTools`). Missing keys
+// default to enabled so existing installs keep all agent tools after upgrade.
+export const isAgentToolEnabled = (id: string) => {
+	const map = Setting.value('ai.chat.enabledTools') as Record<string, boolean> | null;
+	if (!map || typeof map !== 'object') return true;
+	if (!(id in map)) return true;
+	return !!map[id];
+};
+
+export const setAgentToolEnabled = (id: string, enabled: boolean) => {
+	if (!(agentWorkspaceToolIds as readonly string[]).includes(id)) return;
+	Setting.setObjectValue('ai.chat.enabledTools', id, enabled);
+};
+
 export const agentWorkspaceTools = () => {
 	const allowed = new Set<string>(agentWorkspaceToolIds);
-	return allMcpTools.filter(t => allowed.has(t.id));
+	return allMcpTools.filter(t => allowed.has(t.id) && isAgentToolEnabled(t.id));
 };
 
 export const findAgentTool = (id: string) => {

@@ -819,7 +819,17 @@ const builtInMetadata = (Setting: typeof SettingType) => {
 			appTypes: [AppType.Desktop],
 			show: (settings) => !!settings['ai.enabled'],
 			label: () => _('Agent: can search and edit notes'),
-			description: () => _('When enabled, AI Chat may search the vault and create or update notes via tools. Tool activity appears in the chat. Deleting notes is not allowed. Requires a model that supports tool/function calling (OpenAI-compatible / LM Studio).'),
+			description: () => _('When enabled, AI Chat may search the vault and create or update notes via tools. Tool activity appears in the chat. Deleting notes is not allowed. Requires a model that supports tool/function calling. In LM Studio, prefer models known to support tools; some models fail with a Channel Error when tools are sent.'),
+			storage: SettingStorage.File,
+		},
+
+		// Which agent workspace tools are offered to the model. Managed from
+		// the ChatPanel Tools menu; missing keys default to enabled.
+		'ai.chat.enabledTools': {
+			value: {} as Record<string, boolean>,
+			type: SettingItemType.Object,
+			public: false,
+			appTypes: [AppType.Desktop],
 			storage: SettingStorage.File,
 		},
 

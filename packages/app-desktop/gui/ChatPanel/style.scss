@@ -23,16 +23,112 @@
 	flex: 1;
 }
 
-.chat-panel > .header > .agent-badge {
+.chat-panel > .header > .agent-toolbar {
+	position: relative;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	margin-right: 8px;
+}
+
+.chat-panel > .header > .agent-toolbar > .agent-badge {
 	font-size: 0.75em;
 	font-weight: 600;
 	color: var(--joplin-color-faded);
 	border: 1px solid var(--joplin-divider-color);
 	border-radius: 3px;
 	padding: 1px 6px;
-	margin-right: 8px;
 	text-transform: uppercase;
 	letter-spacing: 0.03em;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	background: none;
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	color: var(--joplin-color-faded);
+	cursor: pointer;
+	font-size: 0.75em;
+	font-weight: 600;
+	padding: 1px 6px;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-toggle:hover {
+	color: var(--joplin-color);
+	border-color: var(--joplin-color-faded);
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-toggle > .tools-count {
+	font-weight: 500;
+	opacity: 0.85;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-menu {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	z-index: 20;
+	min-width: 220px;
+	max-width: 280px;
+	padding: 8px;
+	background-color: var(--joplin-background-color);
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 4px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+	font-weight: 400;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-menu > .tools-menu-title {
+	font-size: 0.8em;
+	font-weight: 600;
+	color: var(--joplin-color);
+	margin-bottom: 6px;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-menu > .tools-menu-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 4px 2px;
+	font-size: 0.85em;
+	color: var(--joplin-color);
+	cursor: pointer;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-menu > .tools-menu-row > input {
+	margin-top: 2px;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-menu > .tools-menu-row > .tools-menu-label {
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	line-height: 1.3;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-menu > .tools-menu-row > .tools-menu-label > .tools-write-tag {
+	font-size: 0.75em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	color: var(--joplin-color-correct);
+	border: 1px solid var(--joplin-color-correct);
+	border-radius: 3px;
+	padding: 0 4px;
+}
+
+.chat-panel > .header > .agent-toolbar > .tools-menu > .tools-menu-hint {
+	margin-top: 8px;
+	padding-top: 6px;
+	border-top: 1px solid var(--joplin-divider-color);
+	font-size: 0.75em;
+	color: var(--joplin-color-faded);
+	line-height: 1.4;
 }
 
 .chat-panel > .header > .reset {

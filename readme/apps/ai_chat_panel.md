@@ -67,10 +67,23 @@ Encrypted notes can't be used with the panel — it tells you so when you try.
 
 For more on what counts as remote and how to control that, see [AI chat → Local vs remote](https://github.com/laurent22/joplin/blob/dev/readme/apps/ai_chat.md).
 
+## Agent mode (desktop)
+
+Settings → AI → **Agent: can search and edit notes** lets the chat call workspace tools (search, read, create, update — never delete).
+
+When Agent mode is on, the chat header shows an **Agent** badge and a **Tools** menu. Open Tools to toggle which tools the model may call (preferences are saved). Write tools (`create_note`, `update_note`) are labeled clearly. Only enabled tools are sent to the model.
+
+Tool calling must be supported by the model. In **LM Studio**, some models fail with a server-side **Channel Error** when `tools` are present (prompt-template / function-calling incompatibility). The app retries once without tools and shows a notice in the chat. Prefer a tool-capable model, or turn Agent mode off for models that reject tools.
+
+Long `create_note` bodies can take several minutes on local models. The app uses an extended request timeout for chat completions and, if a write succeeded but the final reply failed, still shows a local success line such as `Created note: {title} (id …)`.
+
+<!-- cSpell:disable -->
+Example that often works for tools in LM Studio: `qwen3.6-27b`. Models such as `gemma-4-31b-it` commonly hit Channel Error when `tools` are included.
+<!-- cSpell:enable -->
+
 ## Limitations of the current version
 
 - **Markdown editor only.** The rich text (WYSIWYG) editor doesn't support the chat panel's automatic edits yet.
 - **No streaming.** Long replies appear all at once when the model has finished, not progressively.
 - **No conversation history across restarts.** Conversations are kept while Joplin is running but are not saved to disk.
-- **No cross-note context.** The chat doesn't pull in information from other notes. For semantic lookup across your vault, see [Semantic search](https://github.com/laurent22/joplin/blob/dev/readme/apps/ai_semantic_search.md).
 - **Very large notes.** Notes that exceed the model's context window can't be sent in full; select the relevant section and ask about that.

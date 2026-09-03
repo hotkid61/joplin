@@ -39,6 +39,9 @@ export interface FetchOptions {
 	headers?: Record<string, string>;
 	body?: string;
 	agent?: unknown;
+	// Passed through to node-fetch. fetchWithRetry defaults to 120s when unset.
+	timeout?: number;
+	maxRetry?: number;
 }
 
 interface AttachFileToNoteOptions {

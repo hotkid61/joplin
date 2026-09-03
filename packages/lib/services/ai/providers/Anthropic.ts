@@ -80,6 +80,8 @@ export default class AnthropicProvider extends ChatProviderBase {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify(body),
+				timeout: 1000 * 60 * 10,
+				maxRetry: 0,
 			});
 			return { response, text: await response.text() };
 		};

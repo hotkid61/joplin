@@ -32,8 +32,25 @@ interface OpenAiChoice {
 interface OpenAiResponse {
 	choices?: OpenAiChoice[];
 	usage?: OpenAiUsage;
-	error?: { message?: string };
+	// OpenAI uses `{ message }`; LM Studio often returns a bare string
+	// (e.g. prompt-template "Channel Error" failures).
+	error?: { message?: string } | string;
 }
+
+const providerErrorMessage = (json: OpenAiResponse | undefined) => {
+	const errorBody = json?.error;
+	if (!errorBody) return '';
+	if (typeof errorBody === 'string') return errorBody;
+	if (typeof errorBody.message === 'string') return errorBody.message;
+	return '';
+};
+
+// Local servers frequently reject tool schemas via opaque 400s (prompt-template
+// crashes, "Channel Error", missing function-call support). Match those so
+// agent mode can degrade to plain chat instead of hard-failing.
+// cSpell:disable
+const toolsUnsupportedError = /tool|function.?call|jinja|prompt.?template|channel|UndefinedValue|not a function|unknown test:\s*sequence/i;
+// cSpell:enable
 
 interface Options {
 	baseUrl: string;
@@ -148,11 +165,19 @@ export default class OpenAiCompatibleProvider extends ChatProviderBase {
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (this.apiKey_) headers['Authorization'] = `Bearer ${this.apiKey_}`;
 
+		// Agent turns (esp. create_note with a long body) routinely exceed the
+		// default 120s shim.fetch timeout — LM Studio then logs "Client
+		// disconnected" and the chat UI never gets the final reply. Use a
+		// long per-request budget and do not auto-retry: a timeout mid-tool
+		// generation must not re-issue the same completion (duplicate writes).
+		const chatTimeoutMs = 1000 * 60 * 10;
 		const doFetch = async () => {
 			const response = await shim.fetch(`${this.baseUrl_}/chat/completions`, {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
+				timeout: chatTimeoutMs,
+				maxRetry: 0,
 			});
 			const text = await response.text();
 			let json: OpenAiResponse;
@@ -170,7 +195,7 @@ export default class OpenAiCompatibleProvider extends ChatProviderBase {
 		// `max_completion_tokens`. Older models and many OpenAI-compatible
 		// servers only know `max_tokens`. Retry once with the new name when the
 		// server tells us so.
-		const errorMessage = () => json?.error?.message ?? '';
+		const errorMessage = () => providerErrorMessage(json);
 		if (response.status === 400 && 'max_tokens' in body && /max_completion_tokens/i.test(errorMessage())) {
 			body.max_completion_tokens = body.max_tokens;
 			delete body.max_tokens;
@@ -187,14 +212,26 @@ export default class OpenAiCompatibleProvider extends ChatProviderBase {
 
 		// Some local models reject tools entirely — fall back to a tools-free
 		// call so agent mode degrades to plain chat rather than hard-failing.
-		if (response.status === 400 && 'tools' in body && /tool|function.?call/i.test(errorMessage())) {
+		// LM Studio often logs this as "Channel Error" and returns a string
+		// `error` (prompt-template failure) rather than `{ message }`.
+		let toolsDropped = false;
+		if (response.status === 400 && 'tools' in body && toolsUnsupportedError.test(errorMessage())) {
 			logger.warn(`Model ${this.model_} rejected tools; retrying without tool calling.`);
+			toolsDropped = true;
 			delete body.tools;
 			({ response, json } = await doFetch());
 		}
 
 		if (response.status >= 400) {
-			const detail = json?.error?.message ? `: ${json.error.message}` : '';
+			const detail = errorMessage() ? `: ${errorMessage()}` : '';
+			// Only when tools were still on the request — a post-fallback failure
+			// is a normal provider error (context length, etc.).
+			if (!toolsDropped && 'tools' in body && toolsUnsupportedError.test(errorMessage())) {
+				throw new JoplinError(
+					`This model rejected agent tool calling${detail}. Switch to a tool-capable model, or disable Agent mode in Settings → AI.`,
+					response.status,
+				);
+			}
 			throw new JoplinError(`AI provider returned ${response.status}${detail}`, response.status);
 		}
 
@@ -223,6 +260,7 @@ export default class OpenAiCompatibleProvider extends ChatProviderBase {
 			usage: { inputTokens, outputTokens },
 			stopReason: stopReasonFromFinish(choice?.finish_reason, toolCalls.length > 0),
 			toolCalls: toolCalls.length ? toolCalls : undefined,
+			toolsDropped: toolsDropped || undefined,
 		};
 	}
 }

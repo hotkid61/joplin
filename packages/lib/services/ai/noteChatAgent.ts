@@ -24,6 +24,12 @@ export interface AgentToolEvent {
 
 export type AgentProgressCallback = (event: AgentToolEvent)=> void;
 
+interface WriteSuccess {
+	toolName: string;
+	title: string;
+	id: string;
+}
+
 const joplinMarkdownNotes = [
 	'This note uses Joplin Markdown — CommonMark plus the following extras:',
 	'- Checkboxes: `- [ ] todo` and `- [x] done`. Render as interactive checkboxes.',
@@ -48,7 +54,30 @@ const estimateMessageTokens = (m: ChatMessage) => {
 	return total;
 };
 
-export const toolActivitySummary = (toolName: string, args: Record<string, unknown>, phase: 'start' | 'end', isError?: boolean) => {
+const clipTitle = (title: string, max = 60) => {
+	const t = title.trim();
+	return t.length > max ? `${t.slice(0, max)}…` : t;
+};
+
+const parseToolResultFields = (text: string) => {
+	try {
+		const parsed = JSON.parse(text) as { id?: unknown; title?: unknown };
+		return {
+			id: typeof parsed.id === 'string' ? parsed.id : '',
+			title: typeof parsed.title === 'string' ? parsed.title : '',
+		};
+	} catch {
+		return { id: '', title: '' };
+	}
+};
+
+export const toolActivitySummary = (
+	toolName: string,
+	args: Record<string, unknown>,
+	phase: 'start' | 'end',
+	isError?: boolean,
+	resultText?: string,
+) => {
 	if (phase === 'start') {
 		switch (toolName) {
 		case 'search_notes': {
@@ -69,7 +98,7 @@ export const toolActivitySummary = (toolName: string, args: Record<string, unkno
 			return 'Listing tags…';
 		case 'create_note': {
 			const title = String(args.title ?? '').trim();
-			const clipped = title.length > 60 ? `${title.slice(0, 60)}…` : title;
+			const clipped = clipTitle(title);
 			return clipped ? `Creating note "${clipped}"…` : 'Creating note…';
 		}
 		case 'update_note':
@@ -89,13 +118,37 @@ export const toolActivitySummary = (toolName: string, args: Record<string, unkno
 		return 'Listed notebooks';
 	case 'list_tags':
 		return 'Listed tags';
-	case 'create_note':
+	case 'create_note': {
+		const fromArgs = clipTitle(String(args.title ?? ''));
+		const fromResult = parseToolResultFields(resultText || '');
+		const title = clipTitle(fromResult.title || fromArgs);
+		const id = fromResult.id;
+		if (title && id) return `Created note: ${title} (id ${id})`;
+		if (title) return `Created note: ${title}`;
+		if (id) return `Created note (id ${id})`;
 		return 'Created note';
-	case 'update_note':
-		return 'Updated note';
+	}
+	case 'update_note': {
+		const id = String(args.id ?? '').slice(0, 12);
+		return id ? `Updated note ${id}` : 'Updated note';
+	}
 	default:
 		return `${toolName} finished`;
 	}
+};
+
+export const formatWriteSuccessFallback = (writes: WriteSuccess[]) => {
+	const lines = writes.map(w => {
+		if (w.toolName === 'create_note') {
+			if (w.title && w.id) return `Created note: ${w.title} (id ${w.id})`;
+			if (w.title) return `Created note: ${w.title}`;
+			if (w.id) return `Created note (id ${w.id})`;
+			return 'Created note';
+		}
+		if (w.id) return `Updated note ${w.id}`;
+		return 'Updated note';
+	});
+	return lines.join('\n');
 };
 
 export const buildAgentToolDefinitions = (): ChatToolDefinition[] => {
@@ -106,10 +159,26 @@ export const buildAgentToolDefinitions = (): ChatToolDefinition[] => {
 	}));
 };
 
+// LM Studio prompt templates for some models treat JSON numbers as sequences
+// and crash ("Unknown test: sequence" / Channel Error). Stringify numeric
+// leaves so tool results stay valid JSON without bare numbers.
+const jsonSafeForLocalModels = (value: unknown): unknown => {
+	if (typeof value === 'number' || typeof value === 'bigint') return String(value);
+	if (Array.isArray(value)) return value.map(jsonSafeForLocalModels);
+	if (value && typeof value === 'object') {
+		const out: Record<string, unknown> = {};
+		for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+			out[key] = jsonSafeForLocalModels(child);
+		}
+		return out;
+	}
+	return value;
+};
+
 const serialiseToolResult = (payload: unknown) => {
 	if (payload === null || payload === undefined) return '';
 	if (typeof payload === 'string') return payload;
-	return JSON.stringify(payload, null, 2);
+	return JSON.stringify(jsonSafeForLocalModels(payload), null, 2);
 };
 
 export const invokeAgentTool = async (call: ToolCallRequest) => {
@@ -136,6 +205,7 @@ const agentSystemPrompt = (note: NoteContext) => {
 		'',
 		'Use tools when you need information outside the current note, or when the user asks you to change another note.',
 		'Prefer search_notes / read_note over guessing. Prefer update_note append or replace_text over rewriting an entire body.',
+		'When calling create_note, keep the body concise (about one to two pages / under ~2000 words). Prefer a clear outline over a very long dump — long tool arguments often time out on local models.',
 		'Never delete notes. There is no delete tool.',
 		'After tools finish, reply to the user in plain language (not JSON). Summarise what you changed.',
 		'',
@@ -184,7 +254,10 @@ export const runNoteChatAgent = async (
 ): Promise<ChatReply> => {
 	const tools = buildAgentToolDefinitions();
 	if (!tools.length) {
-		throw new JoplinError('No agent tools are available.', 'aiAgentNoTools');
+		throw new JoplinError(
+			'No agent tools are enabled. Open the Tools menu in AI Chat and enable at least one tool.',
+			'aiAgentNoTools',
+		);
 	}
 
 	const messages: ChatMessage[] = [
@@ -201,8 +274,38 @@ export const runNoteChatAgent = async (
 		);
 	}
 
+	const writeSuccesses: WriteSuccess[] = [];
+
+	const replyFromWritesOrThrow = (error: unknown): ChatReply => {
+		if (writeSuccesses.length) {
+			logger.warn('Agent chat failed after successful write(s); returning local success summary.', error);
+			return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
+		}
+		throw error;
+	};
+
 	for (let step = 0; step < maxAgentSteps; step++) {
-		const result = await AiService.instance().chat(messages, { tools });
+		let result;
+		try {
+			result = await AiService.instance().chat(messages, { tools });
+		} catch (error) {
+			return replyFromWritesOrThrow(error);
+		}
+
+		if (result.toolsDropped) {
+			const summary = 'Agent tools are not supported by this model/server (LM Studio Channel Error or broken tool template). Continuing without tools — switch to a tool-capable model, or disable Agent mode in Settings → AI.';
+			logger.warn(summary);
+			onProgress?.({
+				phase: 'end',
+				toolName: 'agent_tools',
+				summary,
+				isError: true,
+			});
+			const text = (result.text || '').trim();
+			if (text) return { reply: text, edits: [] };
+			if (writeSuccesses.length) return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
+			return { reply: summary, edits: [] };
+		}
 
 		if (result.toolCalls?.length) {
 			messages.push({
@@ -222,7 +325,7 @@ export const runNoteChatAgent = async (
 				});
 
 				const invoked = await invokeAgentTool(call);
-				const endSummary = toolActivitySummary(call.name, call.arguments, 'end', !invoked.ok);
+				const endSummary = toolActivitySummary(call.name, call.arguments, 'end', !invoked.ok, invoked.text);
 				onProgress?.({
 					phase: 'end',
 					toolName: call.name,
@@ -230,6 +333,15 @@ export const runNoteChatAgent = async (
 					isError: !invoked.ok,
 					isWrite,
 				});
+
+				if (invoked.ok && isWrite) {
+					const fields = parseToolResultFields(invoked.text);
+					writeSuccesses.push({
+						toolName: call.name,
+						title: fields.title || String(call.arguments?.title ?? '').trim(),
+						id: fields.id || String(call.arguments?.id ?? '').trim(),
+					});
+				}
 
 				messages.push({
 					role: 'tool',
@@ -240,7 +352,14 @@ export const runNoteChatAgent = async (
 			continue;
 		}
 
-		return { reply: result.text || '', edits: [] };
+		const text = (result.text || '').trim();
+		if (text) return { reply: text, edits: [] };
+		if (writeSuccesses.length) return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
+		return { reply: '', edits: [] };
+	}
+
+	if (writeSuccesses.length) {
+		return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
 	}
 
 	throw new JoplinError(
@@ -254,5 +373,6 @@ export const _internal = {
 	toolActivitySummary,
 	buildAgentToolDefinitions,
 	invokeAgentTool,
+	formatWriteSuccessFallback,
 	maxAgentSteps,
 };

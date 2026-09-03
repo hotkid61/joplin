@@ -12,6 +12,11 @@ import { AiChatMessage, AppState } from '../../app.reducer';
 import { runNoteChat, ChatTurn } from '@joplin/lib/services/ai/noteChat';
 import { applyAnchorEdits } from '@joplin/lib/services/ai/applyNoteEdits';
 import { chatAvailability } from '@joplin/lib/services/ai/availability';
+import {
+	agentWorkspaceToolIds,
+	agentWriteToolIds,
+	setAgentToolEnabled,
+} from '@joplin/lib/services/mcp/registry';
 import { WindowIdContext } from '../NewWindowOrIFrame';
 
 const logger = Logger.create('ChatPanel');
@@ -27,6 +32,7 @@ interface Props {
 	messages: AiChatMessage[];
 	agentMode: boolean;
 	includeRelatedNotes: boolean;
+	enabledTools: Record<string, boolean>;
 	dispatch: Dispatch;
 }
 
@@ -57,6 +63,40 @@ const placeholderHint = (agentMode: boolean, includeRelatedNotes: boolean) => {
 	return _('Ask about this note, or request a change…');
 };
 
+const formatChatError = (error: { message?: string }) => {
+	const msg = error?.message || '';
+	// cSpell:disable
+	if (/channel.?error|jinja|prompt.?template|UndefinedValue|unknown test:\s*sequence|rejected agent tool/i.test(msg)) {
+		// cSpell:enable
+		return _('This model rejected agent tool calling (LM Studio Channel Error / broken tool template). Switch to a tool-capable model, or disable Agent mode in Settings → AI.');
+	}
+	if (/network timeout|request timed out|body-timeout|request-timeout/i.test(msg)) {
+		return _('The AI request timed out before a reply arrived. Try a shorter ask, or keep create_note bodies concise.');
+	}
+	return msg || _('Something went wrong.');
+};
+
+const agentToolLabel = (id: string) => {
+	switch (id) {
+	case 'search_notes':
+		return _('Search notes');
+	case 'semantic_search_notes':
+		return _('Semantic search');
+	case 'read_note':
+		return _('Read note');
+	case 'list_notebooks':
+		return _('List notebooks');
+	case 'list_tags':
+		return _('List tags');
+	case 'create_note':
+		return _('Create note');
+	case 'update_note':
+		return _('Update note');
+	default:
+		return id;
+	}
+};
+
 // Single-window for v1: mapStateToProps hard-codes defaultWindowId and the
 // toggle writes to the app-wide layout. A second window would mirror the main.
 const ChatPanel: React.FC<Props> = (props) => {
@@ -64,6 +104,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const [input, setInput] = useState('');
 	const [sending, setSending] = useState(false);
 	const [statusText, setStatusText] = useState('');
+	const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
 	const [disclosureShown, setDisclosureShown] = useState<boolean>(() => {
 		try {
 			return !!Setting.value(disclosureSetting);
@@ -79,6 +120,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const noteIdRef = useRef(props.noteId);
 	noteIdRef.current = props.noteId;
 	const messagesEndRef = useRef<HTMLDivElement>(null);
+	const toolsMenuRef = useRef<HTMLDivElement>(null);
 
 	// Bumped on Reset / unmount so an in-flight reply can detect it should
 	// abort instead of landing in a cleared or destroyed conversation.
@@ -110,15 +152,51 @@ const ChatPanel: React.FC<Props> = (props) => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 	}, [messages, statusText]);
 
+	useEffect(() => {
+		if (!toolsMenuOpen) return undefined;
+		const onPointerDown = (event: MouseEvent) => {
+			if (!toolsMenuRef.current?.contains(event.target as Node)) {
+				setToolsMenuOpen(false);
+			}
+		};
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') setToolsMenuOpen(false);
+		};
+		document.addEventListener('mousedown', onPointerDown);
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('mousedown', onPointerDown);
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, [toolsMenuOpen]);
+
 	const conversationTurns = useMemo<ChatTurn[]>(() => {
 		return messages
 			.filter(m => m.role === 'user' || m.role === 'assistant')
 			.map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }));
 	}, [messages]);
 
+	const toolRows = useMemo(() => {
+		return agentWorkspaceToolIds.map(id => {
+			const explicit = props.enabledTools?.[id];
+			return {
+				id,
+				label: agentToolLabel(id),
+				isWrite: agentWriteToolIds.has(id),
+				enabled: explicit === undefined ? true : !!explicit,
+			};
+		});
+	}, [props.enabledTools]);
+
+	const enabledToolCount = toolRows.filter(t => t.enabled).length;
+
 	// Joplin Cloud is remote but the user already consented via sync setup.
 	const requiresDisclosure = props.providerType !== 'joplin-cloud';
 	const showDisclosure = requiresDisclosure && !disclosureShown && messages.length === 0;
+
+	const handleToggleTool = useCallback((id: string, enabled: boolean) => {
+		setAgentToolEnabled(id, enabled);
+	}, []);
 
 	const handleSend = useCallback(async () => {
 		const text = input.trim();
@@ -133,11 +211,14 @@ const ChatPanel: React.FC<Props> = (props) => {
 		setSending(true);
 		setStatusText(props.agentMode ? _('Agent thinking…') : '');
 		setInput('');
+		setToolsMenuOpen(false);
 
 		// Captured so we can roll it back on failure — otherwise a retry would
 		// send the prior user turn as history alongside the new prompt.
 		const userTurnId = makeId();
 		appendMessage({ id: userTurnId, role: 'user', text });
+
+		let toolActivitySeen = false;
 
 		try {
 			const note = await Note.load(props.noteId);
@@ -159,6 +240,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 				if (generationRef.current !== startGeneration) return;
 				setStatusText(event.summary);
 				if (event.phase === 'end') {
+					toolActivitySeen = true;
 					appendMessage({
 						id: makeId(),
 						role: 'tool',
@@ -240,9 +322,13 @@ const ChatPanel: React.FC<Props> = (props) => {
 		} catch (error) {
 			logger.warn('Chat failed:', error);
 			if (generationRef.current !== startGeneration) return;
-			dispatch({ type: 'AI_CHAT_REMOVE', windowId, id: userTurnId });
-			setInput(text);
-			appendMessage({ id: makeId(), role: 'error', text: error.message || _('Something went wrong.') });
+			// If tools already ran, keep the user turn so the transcript stays
+			// coherent with tool rows that were already appended.
+			if (!toolActivitySeen) {
+				dispatch({ type: 'AI_CHAT_REMOVE', windowId, id: userTurnId });
+				setInput(text);
+			}
+			appendMessage({ id: makeId(), role: 'error', text: formatChatError(error) });
 		} finally {
 			setSending(false);
 			setStatusText('');
@@ -257,6 +343,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const handleReset = useCallback(() => {
 		generationRef.current++;
 		setStatusText('');
+		setToolsMenuOpen(false);
 		dispatch({ type: 'AI_CHAT_RESET', windowId: windowId });
 	}, [dispatch, windowId]);
 
@@ -300,7 +387,43 @@ const ChatPanel: React.FC<Props> = (props) => {
 			<div className='header'>
 				<span className='title'>{_('AI Chat')}</span>
 				{props.agentMode && (
-					<span className='agent-badge' title={_('Agent can search and edit notes')}>{_('Agent')}</span>
+					<div className='agent-toolbar' ref={toolsMenuRef}>
+						<span className='agent-badge' title={_('Agent can search and edit notes')}>{_('Agent')}</span>
+						<button
+							type='button'
+							className='tools-toggle'
+							aria-expanded={toolsMenuOpen}
+							aria-haspopup='true'
+							onClick={() => setToolsMenuOpen(open => !open)}
+							title={_('Choose which tools the agent may use')}
+						>
+							{_('Tools')}
+							<span className='tools-count'>{enabledToolCount}/{toolRows.length}</span>
+						</button>
+						{toolsMenuOpen && (
+							<div className='tools-menu' role='menu'>
+								<div className='tools-menu-title'>{_('Available tools')}</div>
+								{toolRows.map(tool => (
+									<label key={tool.id} className={`tools-menu-row ${tool.isWrite ? '-write' : ''}`}>
+										<input
+											type='checkbox'
+											checked={tool.enabled}
+											onChange={(e) => handleToggleTool(tool.id, e.target.checked)}
+										/>
+										<span className='tools-menu-label'>
+											{tool.label}
+											{tool.isWrite ? (
+												<span className='tools-write-tag'>{_('write')}</span>
+											) : null}
+										</span>
+									</label>
+								))}
+								<div className='tools-menu-hint'>
+									{_('Writes can create or change notes across your vault. Turn a tool off to hide it from the model.')}
+								</div>
+							</div>
+						)}
+					</div>
 				)}
 				{messages.length > 0 && (
 					<button type='button' className='reset' onClick={handleReset}>{_('Reset')}</button>
@@ -399,6 +522,7 @@ const mapStateToProps = (state: AppState, ownProps: OwnProps) => {
 		messages: windowState.aiChatMessages || [],
 		agentMode: !!state.settings['ai.chat.agentMode'],
 		includeRelatedNotes: !!state.settings['ai.chat.includeRelatedNotes'],
+		enabledTools: (state.settings['ai.chat.enabledTools'] || {}) as Record<string, boolean>,
 	};
 };
 

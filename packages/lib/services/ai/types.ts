@@ -52,6 +52,9 @@ export interface ChatResult {
 	usage: ChatUsage;
 	stopReason?: ChatStopReason;
 	toolCalls?: ToolCallRequest[];
+	// Set when the provider had to strip `tools` and retry (e.g. LM Studio
+	// Channel Error / broken prompt template for function calling).
+	toolsDropped?: boolean;
 }
 
 export type ProviderClassification = 'local' | 'remote';
