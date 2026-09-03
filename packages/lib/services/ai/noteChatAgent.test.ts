@@ -59,6 +59,8 @@ describe('noteChatAgent', () => {
 		expect(prompt).toContain('Body text');
 		expect(prompt).toContain('keep the body concise');
 		expect(prompt).toContain('NEVER claim success');
+		expect(prompt).toContain('change it back');
+		expect(prompt).toContain('prior title or body');
 		expect(prompt).toContain('notebook_id="default"');
 		expect(prompt).not.toContain('"edits"');
 	});

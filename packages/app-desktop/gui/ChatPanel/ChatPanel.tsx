@@ -7,6 +7,7 @@ import Setting from '@joplin/lib/models/Setting';
 import Note from '@joplin/lib/models/Note';
 import CommandService from '@joplin/lib/services/CommandService';
 import Logger from '@joplin/utils/Logger';
+import { basename } from '@joplin/utils/path';
 import { stateUtils } from '@joplin/lib/reducer';
 import { AiChatMessage, AppState } from '../../app.reducer';
 import { runNoteChat, ChatTurn } from '@joplin/lib/services/ai/noteChat';
@@ -18,12 +19,22 @@ import {
 	createChatTranscriptNote,
 } from '@joplin/lib/services/ai/chatTranscript';
 import {
+	ChatAttachmentExtracted,
+	extractChatAttachment,
+	formatAttachmentDisplayLine,
+	formatAttachmentsForPrompt,
+	isSupportedChatAttachmentPath,
+	supportedChatAttachmentExtensions,
+} from '@joplin/lib/services/ai/chatAttachments';
+import { isAiAbortError } from '@joplin/lib/services/ai/types';
+import {
 	agentWorkspaceToolIds,
 	agentWriteToolIds,
 	setAgentToolEnabled,
 } from '@joplin/lib/services/mcp/registry';
 import { WindowIdContext } from '../NewWindowOrIFrame';
 import AiService from '@joplin/lib/services/ai/AiService';
+import bridge from '../../services/bridge';
 
 const logger = Logger.create('ChatPanel');
 
@@ -42,6 +53,15 @@ interface Props {
 	includeRelatedNotes: boolean;
 	enabledTools: Record<string, boolean>;
 	dispatch: Dispatch;
+}
+
+interface PendingAttachment {
+	id: string;
+	fileName: string;
+	filePath: string;
+	extracting: boolean;
+	extracted?: ChatAttachmentExtracted;
+	error?: string;
 }
 
 const disclosureSetting = 'ai.chat.disclosureAcknowledged';
@@ -105,6 +125,8 @@ const agentToolLabel = (id: string) => {
 	}
 };
 
+const attachmentAcceptExtensions = supportedChatAttachmentExtensions.map(ext => `.${ext}`);
+
 // Single-window for v1: mapStateToProps hard-codes defaultWindowId and the
 // toggle writes to the app-wide layout. A second window would mirror the main.
 const ChatPanel: React.FC<Props> = (props) => {
@@ -117,6 +139,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const [modelOptions, setModelOptions] = useState<string[]>([]);
 	const [modelsLoading, setModelsLoading] = useState(false);
 	const [modelCustom, setModelCustom] = useState('');
+	const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
 	const [disclosureShown, setDisclosureShown] = useState<boolean>(() => {
 		try {
 			return !!Setting.value(disclosureSetting);
@@ -135,11 +158,15 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const toolsMenuRef = useRef<HTMLDivElement>(null);
 	const modelMenuRef = useRef<HTMLDivElement>(null);
 	const transcriptNoteIdRef = useRef<string | null>(null);
+	const abortControllerRef = useRef<AbortController | null>(null);
 
-	// Bumped on Reset / unmount so an in-flight reply can detect it should
+	// Bumped on Reset / Stop / unmount so an in-flight reply can detect it should
 	// abort instead of landing in a cleared or destroyed conversation.
 	const generationRef = useRef(0);
-	useEffect(() => () => { generationRef.current++; }, []);
+	useEffect(() => () => {
+		generationRef.current++;
+		abortControllerRef.current?.abort();
+	}, []);
 
 	const windowId = useContext(WindowIdContext);
 
@@ -210,7 +237,10 @@ const ChatPanel: React.FC<Props> = (props) => {
 	const conversationTurns = useMemo<ChatTurn[]>(() => {
 		return messages
 			.filter(m => m.role === 'user' || m.role === 'assistant')
-			.map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }));
+			.map(m => ({
+				role: m.role as 'user' | 'assistant',
+				content: m.modelContent || m.text,
+			}));
 	}, [messages]);
 
 	const toolRows = useMemo(() => {
@@ -226,6 +256,8 @@ const ChatPanel: React.FC<Props> = (props) => {
 	}, [props.enabledTools]);
 
 	const enabledToolCount = toolRows.filter(t => t.enabled).length;
+	const attachmentsReady = attachments.length > 0 && attachments.every(a => !a.extracting && !!a.extracted && !a.error);
+	const canSend = (!!input.trim() || attachmentsReady) && !sending && !attachments.some(a => a.extracting);
 
 	// Joplin Cloud is remote but the user already consented via sync setup.
 	const requiresDisclosure = props.providerType !== 'joplin-cloud';
@@ -251,9 +283,78 @@ const ChatPanel: React.FC<Props> = (props) => {
 		return created.id;
 	}, []);
 
+	const handleRemoveAttachment = useCallback((id: string) => {
+		setAttachments(prev => prev.filter(a => a.id !== id));
+	}, []);
+
+	const handleAttach = useCallback(async () => {
+		if (sending) return;
+		const paths = await bridge().showOpenDialog({
+			properties: ['openFile', 'multiSelections'],
+			filters: [
+				{ name: _('Documents'), extensions: [...supportedChatAttachmentExtensions] },
+				{ name: _('All files'), extensions: ['*'] },
+			],
+		});
+		if (!paths?.length) return;
+
+		const accepted = paths.filter(p => isSupportedChatAttachmentPath(p));
+		const rejected = paths.filter(p => !isSupportedChatAttachmentPath(p));
+		if (rejected.length) {
+			appendMessage({
+				id: makeId(),
+				role: 'error',
+				text: _('Unsupported file type(s): %s. Supported: %s',
+					rejected.map(p => basename(p)).join(', '),
+					attachmentAcceptExtensions.join(', ')),
+			});
+		}
+		if (!accepted.length) return;
+
+		const pending: PendingAttachment[] = accepted.map(filePath => ({
+			id: makeId(),
+			fileName: basename(filePath),
+			filePath,
+			extracting: true,
+		}));
+		setAttachments(prev => [...prev, ...pending]);
+
+		for (const item of pending) {
+			try {
+				const extracted = await extractChatAttachment(item.filePath);
+				setAttachments(prev => prev.map(a => (
+					a.id === item.id
+						? { ...a, extracting: false, extracted }
+						: a
+				)));
+			} catch (error) {
+				logger.warn('Attachment extract failed:', error);
+				const message = error instanceof Error ? error.message : String(error);
+				setAttachments(prev => prev.map(a => (
+					a.id === item.id
+						? { ...a, extracting: false, error: message }
+						: a
+				)));
+			}
+		}
+	}, [sending, appendMessage]);
+
+	const handleStop = useCallback(() => {
+		abortControllerRef.current?.abort();
+		generationRef.current++;
+		setSending(false);
+		setStatusText('');
+		appendMessage({ id: makeId(), role: 'error', text: _('Stopped.') });
+		void appendChatTranscriptSafe(transcriptNoteIdRef.current, [{ role: 'error', text: _('Stopped.') }]);
+	}, [appendMessage]);
+
 	const handleSend = useCallback(async () => {
 		const text = input.trim();
-		if (!text || sending) return;
+		const readyAttachments = attachments
+			.filter(a => a.extracted && !a.error)
+			.map(a => a.extracted as ChatAttachmentExtracted);
+		if ((!text && !readyAttachments.length) || sending) return;
+		if (attachments.some(a => a.extracting)) return;
 		if (!props.noteId) {
 			appendMessage({ id: makeId(), role: 'error', text: _('Open a note to start chatting.') });
 			return;
@@ -261,23 +362,36 @@ const ChatPanel: React.FC<Props> = (props) => {
 
 		const startGeneration = generationRef.current;
 		const noteIdAtStart = props.noteId;
+		const controller = new AbortController();
+		abortControllerRef.current = controller;
 		setSending(true);
 		setStatusText(props.agentMode ? _('Agent thinking…') : '');
 		setInput('');
+		setAttachments([]);
 		setToolsMenuOpen(false);
 		setModelMenuOpen(false);
+
+		const attachmentLine = formatAttachmentDisplayLine(readyAttachments.map(a => a.fileName));
+		const displayText = [text, attachmentLine].filter(Boolean).join('\n\n');
+		const attachmentBlock = formatAttachmentsForPrompt(readyAttachments);
+		const modelText = [text, attachmentBlock].filter(Boolean).join('\n\n');
 
 		// Captured so we can roll it back on failure — otherwise a retry would
 		// send the prior user turn as history alongside the new prompt.
 		const userTurnId = makeId();
-		appendMessage({ id: userTurnId, role: 'user', text });
+		appendMessage({
+			id: userTurnId,
+			role: 'user',
+			text: displayText || attachmentLine || _('(attachment)'),
+			modelContent: modelText,
+		});
 
 		let toolActivitySeen = false;
 		const toolSummaries: string[] = [];
 
 		try {
 			const transcriptId = await ensureTranscriptNote();
-			await appendChatTranscriptSafe(transcriptId, [{ role: 'user', text }]);
+			await appendChatTranscriptSafe(transcriptId, [{ role: 'user', text: displayText || modelText }]);
 
 			const note = await Note.load(props.noteId);
 			if (!note) throw new Error(`Note not found: ${props.noteId}`);
@@ -294,7 +408,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 				body: note.body || '',
 				selection: selection || null,
 				noteId: props.noteId,
-			}, conversationTurns, text, (event) => {
+			}, conversationTurns, modelText, (event) => {
 				if (generationRef.current !== startGeneration) return;
 				setStatusText(event.summary);
 				if (event.phase === 'end') {
@@ -308,7 +422,7 @@ const ChatPanel: React.FC<Props> = (props) => {
 						isError: event.isError,
 					});
 				}
-			});
+			}, controller.signal);
 
 			if (generationRef.current !== startGeneration) return;
 
@@ -392,20 +506,38 @@ const ChatPanel: React.FC<Props> = (props) => {
 		} catch (error) {
 			logger.warn('Chat failed:', error);
 			if (generationRef.current !== startGeneration) return;
+			if (isAiAbortError(error)) {
+				// Stop button already cleared busy state / logged "Stopped."
+				return;
+			}
 			// If tools already ran, keep the user turn so the transcript stays
 			// coherent with tool rows that were already appended.
 			if (!toolActivitySeen) {
 				dispatch({ type: 'AI_CHAT_REMOVE', windowId, id: userTurnId });
 				setInput(text);
+				if (readyAttachments.length) {
+					setAttachments(readyAttachments.map(extracted => ({
+						id: makeId(),
+						fileName: extracted.fileName,
+						filePath: '',
+						extracting: false,
+						extracted,
+					})));
+				}
 			}
 			const errText = formatChatError(error);
 			appendMessage({ id: makeId(), role: 'error', text: errText });
 			await appendChatTranscriptSafe(transcriptNoteIdRef.current, [{ role: 'error', text: errText }]);
 		} finally {
-			setSending(false);
-			setStatusText('');
+			if (abortControllerRef.current === controller) {
+				abortControllerRef.current = null;
+			}
+			if (generationRef.current === startGeneration) {
+				setSending(false);
+				setStatusText('');
+			}
 		}
-	}, [input, sending, props.noteId, props.agentMode, conversationTurns, windowId, appendMessage, dispatch, ensureTranscriptNote]);
+	}, [input, attachments, sending, props.noteId, props.agentMode, conversationTurns, windowId, appendMessage, dispatch, ensureTranscriptNote]);
 
 	const handleAcknowledgeDisclosure = useCallback(() => {
 		Setting.setValue(disclosureSetting, true);
@@ -413,10 +545,14 @@ const ChatPanel: React.FC<Props> = (props) => {
 	}, []);
 
 	const handleReset = useCallback(() => {
+		abortControllerRef.current?.abort();
+		abortControllerRef.current = null;
 		generationRef.current++;
+		setSending(false);
 		setStatusText('');
 		setToolsMenuOpen(false);
 		setModelMenuOpen(false);
+		setAttachments([]);
 		transcriptNoteIdRef.current = null;
 		dispatch({ type: 'AI_CHAT_RESET', windowId: windowId });
 	}, [dispatch, windowId]);
@@ -426,9 +562,9 @@ const ChatPanel: React.FC<Props> = (props) => {
 		// the composition for CJK / accented input.
 		if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
-			if (!sending) void handleSend();
+			if (canSend) void handleSend();
 		}
-	}, [handleSend, sending]);
+	}, [handleSend, canSend]);
 
 	if (!props.available) {
 		return (
@@ -622,7 +758,41 @@ const ChatPanel: React.FC<Props> = (props) => {
 						<a href='#' onClick={(e) => { e.preventDefault(); handleAcknowledgeDisclosure(); }}>{_('Don\'t show again')}</a>
 					</div>
 				)}
+				{attachments.length > 0 && (
+					<div className='attachment-chips' aria-label={_('Attachments')}>
+						{attachments.map(a => (
+							<span
+								key={a.id}
+								className={`attachment-chip ${a.error ? '-error' : ''} ${a.extracting ? '-pending' : ''}`}
+								title={a.error || a.filePath}
+							>
+								<span className='attachment-chip-name'>
+									{a.extracting ? _('Reading %s…', a.fileName) : a.fileName}
+								</span>
+								<button
+									type='button'
+									className='attachment-chip-remove'
+									onClick={() => handleRemoveAttachment(a.id)}
+									aria-label={_('Remove %s', a.fileName)}
+									disabled={sending}
+								>
+									×
+								</button>
+							</span>
+						))}
+					</div>
+				)}
 				<div className='input-wrapper'>
+					<button
+						type='button'
+						className='attach'
+						onClick={() => { void handleAttach(); }}
+						disabled={sending}
+						aria-label={_('Attach document')}
+						title={_('Attach document (pdf, txt, md, csv)')}
+					>
+						<i className='fas fa-paperclip' aria-hidden='true' />
+					</button>
 					<textarea
 						className='input'
 						value={input}
@@ -631,16 +801,28 @@ const ChatPanel: React.FC<Props> = (props) => {
 						placeholder={placeholderHint(props.agentMode, props.includeRelatedNotes)}
 						aria-label={_('Chat message')}
 					/>
-					<button
-						type='button'
-						className='send'
-						onClick={() => { void handleSend(); }}
-						disabled={sending || !input.trim()}
-						aria-label={sending ? _('Sending') : _('Send')}
-						title={sending ? _('Sending…') : _('Send')}
-					>
-						<i className={sending ? 'fas fa-spinner' : 'fas fa-paper-plane'} aria-hidden='true' />
-					</button>
+					{sending ? (
+						<button
+							type='button'
+							className='stop'
+							onClick={handleStop}
+							aria-label={_('Stop')}
+							title={_('Stop')}
+						>
+							<i className='fas fa-stop' aria-hidden='true' />
+						</button>
+					) : (
+						<button
+							type='button'
+							className='send'
+							onClick={() => { void handleSend(); }}
+							disabled={!canSend}
+							aria-label={_('Send')}
+							title={_('Send')}
+						>
+							<i className='fas fa-paper-plane' aria-hidden='true' />
+						</button>
+					)}
 				</div>
 			</div>
 		</div>

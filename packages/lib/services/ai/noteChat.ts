@@ -1,5 +1,5 @@
 import AiService from './AiService';
-import { ChatMessage } from './types';
+import { ChatMessage, throwIfAiAborted } from './types';
 import JoplinError from '../../JoplinError';
 import Logger from '@joplin/utils/Logger';
 import JSON5 from 'json5';
@@ -272,9 +272,12 @@ export const runNoteChat = async (
 	history: ChatTurn[],
 	userMessage: string,
 	onProgress?: AgentProgressCallback,
+	signal?: AbortSignal,
 ): Promise<ChatReply> => {
+	throwIfAiAborted(signal);
 	const relatedNotes = note.relatedNotes
 		?? await fetchRelatedNoteExcerpts(userMessage, note.noteId);
+	throwIfAiAborted(signal);
 	const noteWithContext: NoteContext = relatedNotes.length
 		? { ...note, relatedNotes }
 		: note;
@@ -285,7 +288,7 @@ export const runNoteChat = async (
 
 	if (Setting.value('ai.chat.agentMode')) {
 		logger.info('Running AI Chat in agent mode (workspace tools enabled)');
-		return runNoteChatAgent(noteWithContext, history, userMessage, onProgress);
+		return runNoteChatAgent(noteWithContext, history, userMessage, onProgress, signal);
 	}
 
 	const messages: ChatMessage[] = [
@@ -304,7 +307,12 @@ export const runNoteChat = async (
 		);
 	}
 
-	const result = await AiService.instance().chat(messages, { responseFormat: responseSchema(noteWithContext) });
+	throwIfAiAborted(signal);
+	const result = await AiService.instance().chat(messages, {
+		responseFormat: responseSchema(noteWithContext),
+		signal,
+	});
+	throwIfAiAborted(signal);
 	return enforceSelectionScope(tryParseReply(result.text), note.selection);
 };
 

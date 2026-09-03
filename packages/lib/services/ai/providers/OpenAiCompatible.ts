@@ -2,7 +2,7 @@ import shim from '../../../shim';
 import JoplinError from '../../../JoplinError';
 import Logger from '@joplin/utils/Logger';
 import { rtrimSlashes } from '@joplin/utils/path';
-import { ChatMessage, ChatOptions, ChatResult, ChatStopReason, ProviderClassification, ToolCallRequest } from '../types';
+import { ChatMessage, ChatOptions, ChatResult, ChatStopReason, ProviderClassification, ToolCallRequest, throwIfAiAborted } from '../types';
 import ChatProviderBase from './ChatProviderBase';
 
 const logger = Logger.create('OpenAiCompatibleProvider');
@@ -142,6 +142,7 @@ export default class OpenAiCompatibleProvider extends ChatProviderBase {
 	protected async doChat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult> {
 		if (!this.baseUrl_) throw new JoplinError('OpenAI-compatible provider has no base URL configured', 'aiProviderNotConfigured');
 		if (!this.model_) throw new JoplinError('OpenAI-compatible provider has no model configured', 'aiProviderNotConfigured');
+		throwIfAiAborted(options?.signal);
 
 		const body: Record<string, unknown> = {
 			model: this.model_,
@@ -172,13 +173,16 @@ export default class OpenAiCompatibleProvider extends ChatProviderBase {
 		// generation must not re-issue the same completion (duplicate writes).
 		const chatTimeoutMs = 1000 * 60 * 10;
 		const doFetch = async () => {
+			throwIfAiAborted(options?.signal);
 			const response = await shim.fetch(`${this.baseUrl_}/chat/completions`, {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
 				timeout: chatTimeoutMs,
 				maxRetry: 0,
+				signal: options?.signal,
 			});
+			throwIfAiAborted(options?.signal);
 			const text = await response.text();
 			let json: OpenAiResponse;
 			try {

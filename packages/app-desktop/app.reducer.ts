@@ -12,6 +12,8 @@ export interface AiChatMessage {
 	id: string;
 	role: 'user' | 'assistant' | 'error' | 'separator' | 'tool';
 	text: string;
+	// Full content sent to the model when it differs from display text (e.g. attachments).
+	modelContent?: string;
 	editsApplied?: number;
 	editsMissed?: number;
 	isWrite?: boolean;

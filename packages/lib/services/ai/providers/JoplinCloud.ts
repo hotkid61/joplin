@@ -2,7 +2,7 @@ import Setting from '../../../models/Setting';
 import JoplinError from '../../../JoplinError';
 import JoplinServerApi, { Session } from '../../../JoplinServerApi';
 import SyncTargetRegistry from '../../../SyncTargetRegistry';
-import { ChatMessage, ChatOptions, ChatResult, ProviderClassification } from '../types';
+import { ChatMessage, ChatOptions, ChatResult, ProviderClassification, throwIfAiAborted } from '../types';
 import ChatProviderBase from './ChatProviderBase';
 
 const joplinCloudSyncTarget = () => SyncTargetRegistry.nameToId('joplinCloud');
@@ -54,6 +54,7 @@ export default class JoplinCloudProvider extends ChatProviderBase {
 	}
 
 	protected async doChat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResult> {
+		throwIfAiAborted(options?.signal);
 		if (Setting.value('sync.target') !== joplinCloudSyncTarget()) {
 			throw new JoplinError('Joplin Cloud AI requires Joplin Cloud sync', 'aiJoplinCloudSyncRequired');
 		}

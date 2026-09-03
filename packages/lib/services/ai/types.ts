@@ -38,7 +38,26 @@ export interface ChatOptions {
 	responseFormat?: ResponseFormat;
 	maxTokens?: number;
 	tools?: ChatToolDefinition[];
+	// When aborted, providers cancel in-flight HTTP and agent loops stop.
+	signal?: AbortSignal;
 }
+
+export const isAiAbortError = (error: unknown) => {
+	if (!error || typeof error !== 'object') return false;
+	const candidate = error as { name?: string; code?: string | number; message?: string };
+	if (candidate.name === 'AbortError') return true;
+	if (candidate.code === 'aiAborted' || candidate.code === 'ABORT_ERR') return true;
+	if (typeof candidate.message === 'string' && /aborted|The user aborted/i.test(candidate.message)) return true;
+	return false;
+};
+
+export const throwIfAiAborted = (signal?: AbortSignal) => {
+	if (!signal?.aborted) return;
+	const error = new Error('AI request was stopped.');
+	error.name = 'AbortError';
+	(error as Error & { code: string }).code = 'aiAborted';
+	throw error;
+};
 
 export interface ChatUsage {
 	inputTokens: number;

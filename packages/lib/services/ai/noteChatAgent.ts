@@ -1,5 +1,5 @@
 import AiService from './AiService';
-import { ChatMessage, ChatToolDefinition, ToolCallRequest } from './types';
+import { ChatMessage, ChatToolDefinition, ToolCallRequest, isAiAbortError, throwIfAiAborted } from './types';
 import JoplinError from '../../JoplinError';
 import Logger from '@joplin/utils/Logger';
 import { agentWriteToolIds, agentWorkspaceTools, findAgentTool } from '../mcp/registry';
@@ -230,6 +230,7 @@ const agentSystemPrompt = (note: NoteContext) => {
 		'',
 		'CRITICAL — tool results are the only proof of writes:',
 		'- For any create, update, rename, revert, undo, or "change it back" request, you MUST call create_note or update_note in THIS turn.',
+		'- When the user says "change it back", "revert", or "undo" a title/body change, call update_note with the prior title or body from earlier in this conversation if known. Do not invent a different prior value.',
 		'- NEVER claim success (e.g. "has been updated", "changed back", "successfully reverted") unless that tool returned success in THIS turn.',
 		'- Listing notebooks or searching is not enough — you still must call update_note to change a title or body.',
 		'- For title/body updates, pass only id and the fields to change. Do NOT pass notebook_id unless moving the note. Never invent notebook_id="default".',
@@ -279,7 +280,9 @@ export const runNoteChatAgent = async (
 	history: ChatTurn[],
 	userMessage: string,
 	onProgress?: AgentProgressCallback,
+	signal?: AbortSignal,
 ): Promise<ChatReply> => {
+	throwIfAiAborted(signal);
 	const tools = buildAgentToolDefinitions();
 	if (!tools.length) {
 		throw new JoplinError(
@@ -306,6 +309,7 @@ export const runNoteChatAgent = async (
 	let falseClaimNudged = false;
 
 	const replyFromWritesOrThrow = (error: unknown): ChatReply => {
+		if (isAiAbortError(error)) throw error;
 		if (writeSuccesses.length) {
 			logger.warn('Agent chat failed after successful write(s); returning local success summary.', error);
 			return { reply: formatWriteSuccessFallback(writeSuccesses), edits: [] };
@@ -338,12 +342,14 @@ export const runNoteChatAgent = async (
 	};
 
 	for (let step = 0; step < maxAgentSteps; step++) {
+		throwIfAiAborted(signal);
 		let result;
 		try {
-			result = await AiService.instance().chat(messages, { tools });
+			result = await AiService.instance().chat(messages, { tools, signal });
 		} catch (error) {
 			return replyFromWritesOrThrow(error);
 		}
+		throwIfAiAborted(signal);
 
 		if (result.toolsDropped) {
 			const summary = 'Agent tools are not supported by this model/server (LM Studio Channel Error or broken tool template). Continuing without tools — switch to a tool-capable model, or disable Agent mode in Settings → AI.';
@@ -372,6 +378,7 @@ export const runNoteChatAgent = async (
 			});
 
 			for (const call of result.toolCalls) {
+				throwIfAiAborted(signal);
 				const isWrite = agentWriteToolIds.has(call.name);
 				const startSummary = toolActivitySummary(call.name, call.arguments, 'start');
 				onProgress?.({
@@ -382,6 +389,7 @@ export const runNoteChatAgent = async (
 				});
 
 				const invoked = await invokeAgentTool(call);
+				throwIfAiAborted(signal);
 				const endSummary = toolActivitySummary(call.name, call.arguments, 'end', !invoked.ok, invoked.text);
 				onProgress?.({
 					phase: 'end',

@@ -397,9 +397,63 @@
 	padding: 4px 0;
 }
 
+.chat-panel > .composer > .attachment-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.chat-panel > .composer > .attachment-chips > .attachment-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 100%;
+	padding: 2px 4px 2px 8px;
+	border: 1px solid var(--joplin-divider-color);
+	border-radius: 3px;
+	background-color: var(--joplin-background-color3);
+	color: var(--joplin-color);
+	font-size: 0.8em;
+}
+
+.chat-panel > .composer > .attachment-chips > .attachment-chip.-pending {
+	opacity: 0.75;
+	font-style: italic;
+}
+
+.chat-panel > .composer > .attachment-chips > .attachment-chip.-error {
+	border-color: var(--joplin-color-warn);
+	color: var(--joplin-color-warn);
+}
+
+.chat-panel > .composer > .attachment-chips > .attachment-chip > .attachment-chip-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 180px;
+}
+
+.chat-panel > .composer > .attachment-chips > .attachment-chip > .attachment-chip-remove {
+	border: none;
+	background: none;
+	color: var(--joplin-color-faded);
+	cursor: pointer;
+	font-size: 1.1em;
+	line-height: 1;
+	padding: 0 4px;
+}
+
+.chat-panel > .composer > .attachment-chips > .attachment-chip > .attachment-chip-remove:hover:not(:disabled) {
+	color: var(--joplin-color);
+}
+
+.chat-panel > .composer > .attachment-chips > .attachment-chip > .attachment-chip-remove:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
 // Compose box: an outer wrapper that visually behaves as the input, with the
-// real <textarea> filling it and the send button floating in the
-// bottom-right corner.
+// real <textarea> filling it and attach/send buttons floating in the corners.
 .chat-panel > .composer > .input-wrapper {
 	position: relative;
 	display: flex;
@@ -417,7 +471,7 @@
 	resize: none;
 	min-height: 70px;
 	max-height: 200px;
-	padding: 8px 44px 8px 10px;
+	padding: 8px 44px 8px 40px;
 	border: none;
 	border-radius: 4px;
 	background-color: transparent;
@@ -427,22 +481,43 @@
 	outline: none;
 }
 
-.chat-panel > .composer > .input-wrapper > .send {
+.chat-panel > .composer > .input-wrapper > .attach,
+.chat-panel > .composer > .input-wrapper > .send,
+.chat-panel > .composer > .input-wrapper > .stop {
 	position: absolute;
-	right: 6px;
 	bottom: 6px;
 	width: 30px;
 	height: 30px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background-color: var(--joplin-background-color5);
-	color: var(--joplin-color5);
 	border: none;
 	border-radius: 4px;
 	cursor: pointer;
 	font-size: 0.9em;
 	padding: 0;
+}
+
+.chat-panel > .composer > .input-wrapper > .attach {
+	left: 6px;
+	background: none;
+	color: var(--joplin-color-faded);
+}
+
+.chat-panel > .composer > .input-wrapper > .attach:hover:not(:disabled) {
+	color: var(--joplin-color);
+	background-color: var(--joplin-background-color-hover3);
+}
+
+.chat-panel > .composer > .input-wrapper > .attach:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.chat-panel > .composer > .input-wrapper > .send {
+	right: 6px;
+	background-color: var(--joplin-background-color5);
+	color: var(--joplin-color5);
 }
 
 .chat-panel > .composer > .input-wrapper > .send:hover:not(:disabled) {
@@ -458,14 +533,14 @@
 	cursor: not-allowed;
 }
 
-// Spinner animation while the request is in flight.
-.chat-panel > .composer > .input-wrapper > .send > .fa-spinner {
-	animation: chat-panel-spin 0.9s linear infinite;
+.chat-panel > .composer > .input-wrapper > .stop {
+	right: 6px;
+	background-color: var(--joplin-color-warn);
+	color: var(--joplin-background-color);
 }
 
-@keyframes chat-panel-spin {
-	from { transform: rotate(0deg); }
-	to { transform: rotate(360deg); }
+.chat-panel > .composer > .input-wrapper > .stop:hover {
+	opacity: 0.9;
 }
 
 .chat-panel > .disabled-message {

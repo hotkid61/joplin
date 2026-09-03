@@ -42,6 +42,8 @@ export interface FetchOptions {
 	// Passed through to node-fetch. fetchWithRetry defaults to 120s when unset.
 	timeout?: number;
 	maxRetry?: number;
+	// Abort in-flight HTTP (e.g. Stop in AI Chat). node-fetch 2 supports this.
+	signal?: AbortSignal;
 }
 
 interface AttachFileToNoteOptions {

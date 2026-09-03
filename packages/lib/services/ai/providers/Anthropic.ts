@@ -1,7 +1,7 @@
 import shim from '../../../shim';
 import JoplinError from '../../../JoplinError';
 import Logger from '@joplin/utils/Logger';
-import { ChatMessage, ChatOptions, ChatResult, ProviderClassification } from '../types';
+import { ChatMessage, ChatOptions, ChatResult, ProviderClassification, throwIfAiAborted } from '../types';
 import ChatProviderBase from './ChatProviderBase';
 
 const logger = Logger.create('AnthropicProvider');
@@ -72,6 +72,7 @@ export default class AnthropicProvider extends ChatProviderBase {
 		}
 
 		const doRequest = async () => {
+			throwIfAiAborted(options?.signal);
 			const response = await shim.fetch('https://api.anthropic.com/v1/messages', {
 				method: 'POST',
 				headers: {
@@ -82,7 +83,9 @@ export default class AnthropicProvider extends ChatProviderBase {
 				body: JSON.stringify(body),
 				timeout: 1000 * 60 * 10,
 				maxRetry: 0,
+				signal: options?.signal,
 			});
+			throwIfAiAborted(options?.signal);
 			return { response, text: await response.text() };
 		};
 

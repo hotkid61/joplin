@@ -1573,6 +1573,8 @@ packages/lib/services/ai/aiSettingsTransition.js
 packages/lib/services/ai/applyNoteEdits.js
 packages/lib/services/ai/availability.test.js
 packages/lib/services/ai/availability.js
+packages/lib/services/ai/chatAttachments.test.js
+packages/lib/services/ai/chatAttachments.js
 packages/lib/services/ai/chatTranscript.test.js
 packages/lib/services/ai/chatTranscript.js
 packages/lib/services/ai/chunker.test.js
